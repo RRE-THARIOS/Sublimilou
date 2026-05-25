@@ -10,12 +10,40 @@ import { resolveViaPiped } from './providers/piped.mjs';
 import { resolveViaCobalt } from './providers/cobalt.mjs';
 import { resolveViaInvidious } from './providers/invidious.mjs';
 
+async function readYoutubeUrl(req) {
+  if (req.method === 'POST') {
+    const body = await req.json();
+    return body?.url;
+  }
+  if (req.method === 'GET') {
+    return new URL(req.url).searchParams.get('url');
+  }
+  return null;
+}
+
 export default async (req) => {
   if (req.method === 'OPTIONS') return corsPreflight();
-  if (req.method !== 'POST') return jsonResponse({ error: 'Méthode non autorisée' }, 405);
+
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    return jsonResponse({ error: 'Méthode non autorisée', code: 'METHOD' }, 405);
+  }
 
   try {
-    const { url } = await req.json();
+    const url = await readYoutubeUrl(req);
+
+    if (!url) {
+      return jsonResponse(
+        {
+          error:
+            req.method === 'GET'
+              ? 'Ajoute ?url=https://www.youtube.com/watch?v=… ou utilise le bouton « Importer » dans l’app.'
+              : 'Corps JSON manquant : { "url": "https://www.youtube.com/…" }',
+          code: 'MISSING_URL',
+        },
+        400,
+      );
+    }
+
     const normalized = normalizeYoutubeUrl(url);
     const videoId = extractVideoId(url);
 
