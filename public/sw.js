@@ -1,16 +1,24 @@
-const CACHE = 'sublimilou-v45';
+const CACHE = 'sublimilou-v46';
 const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+  e.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(SHELL))
+      .catch(() => {}),
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-    ),
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+      )
+      .catch(() => {}),
   );
   self.clients.claim();
 });
@@ -19,25 +27,54 @@ self.addEventListener('message', (e) => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
+const PASS_THROUGH = (e) => {
+  /* laisser le navigateur gérer normalement */
+};
+
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET') return PASS_THROUGH(e);
 
-  const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api') || url.pathname.includes('netlify/functions')) return;
+  let url;
+  try {
+    url = new URL(e.request.url);
+  } catch {
+    return PASS_THROUGH(e);
+  }
 
-  // Pages HTML : toujours le réseau (évite vieux bundles + erreur Response undefined)
-  if (e.request.mode === 'navigate') return;
+  if (url.pathname.startsWith('/api') || url.pathname.includes('netlify/functions')) {
+    return PASS_THROUGH(e);
+  }
+  if (e.request.mode === 'navigate') return PASS_THROUGH(e);
+  if (url.origin !== self.location.origin) return PASS_THROUGH(e);
 
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fetched = fetch(e.request).then((res) => {
-        if (res.ok && url.origin === self.location.origin) {
-          const clone = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, clone));
+    (async () => {
+      try {
+        const cached = await caches.match(e.request);
+        if (cached) {
+          fetch(e.request)
+            .then((res) => {
+              if (res?.ok) {
+                caches.open(CACHE).then((c) => c.put(e.request, res.clone())).catch(() => {});
+              }
+            })
+            .catch(() => {});
+          return cached;
+        }
+
+        const res = await fetch(e.request);
+        if (res?.ok) {
+          caches.open(CACHE).then((c) => c.put(e.request, res.clone())).catch(() => {});
         }
         return res;
-      });
-      return cached || fetched;
-    }),
+      } catch (err) {
+        const fallback = await caches.match(e.request);
+        if (fallback) return fallback;
+        return new Response('Hors-ligne', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+    })(),
   );
 });
