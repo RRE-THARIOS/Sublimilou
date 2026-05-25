@@ -1,0 +1,170 @@
+/* ── Splash d’ouverture (sobre) ── */
+body.splash-active {
+  overflow: hidden;
+}
+
+body.splash-active .app {
+  visibility: hidden;
+}
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) 1.25rem env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+}
+
+.splash.is-visible {
+  opacity: 1;
+}
+
+.splash.is-leaving {
+  opacity: 0;
+}
+
+/* Même univers que l’app, sans surcharge */
+.splash-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(246, 217, 216, 0.5), transparent 62%),
+    radial-gradient(ellipse 60% 45% at 100% 100%, rgba(242, 199, 179, 0.22), transparent 55%),
+    linear-gradient(180deg, #fff9f5 0%, #f7ebdd 55%, #fff9f5 100%);
+}
+
+.splash-orb {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(30rem, 95vw);
+  height: min(30rem, 80vh);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(246, 217, 216, 0.38) 0%, transparent 72%);
+  pointer-events: none;
+}
+
+.splash-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(92vw, 26rem);
+  min-height: min(76vh, 34rem);
+  padding: 2.5rem 0.75rem;
+  text-align: center;
+}
+
+.splash-logo {
+  width: 7rem;
+  height: 7rem;
+  margin-bottom: 2rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 28px rgba(107, 95, 110, 0.1);
+  animation: splashIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.splash-brand {
+  margin: 0 0 1.5rem;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(107, 95, 110, 0.45);
+  animation: splashIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.splash-rule {
+  width: 3.5rem;
+  height: 1px;
+  margin-bottom: 1.65rem;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(107, 95, 110, 0.22) 20%,
+    rgba(107, 95, 110, 0.22) 80%,
+    transparent
+  );
+  animation: splashIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.splash-message {
+  margin: 0;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.28;
+  color: #6b5f6e;
+}
+
+.splash-message-line {
+  display: block;
+  font-size: clamp(1.75rem, 8.5vw, 2.2rem);
+  font-weight: 500;
+  line-height: 1.22;
+  animation: splashIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
+}
+
+.splash-message-accent {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: clamp(2rem, 10vw, 2.65rem);
+  font-style: italic;
+  font-weight: 500;
+  color: #c9a099;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  animation: splashIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}
+
+@keyframes splashIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 390px) {
+  .splash-inner {
+    min-height: min(70vh, 30rem);
+  }
+
+  .splash-logo {
+    width: 6rem;
+    height: 6rem;
+    margin-bottom: 1.65rem;
+  }
+
+  .splash-message-line {
+    font-size: clamp(1.6rem, 8vw, 1.95rem);
+  }
+
+  .splash-message-accent {
+    font-size: clamp(1.85rem, 9.5vw, 2.35rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo,
+  .splash-brand,
+  .splash-rule,
+  .splash-message-line,
+  .splash-message-accent {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

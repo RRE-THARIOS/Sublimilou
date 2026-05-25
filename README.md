@@ -1,4 +1,4 @@
-# Subliminaux ✦
+# Sublimilou ✦
 
 App perso pour écouter des subliminaux : colle un lien YouTube → l’audio est importé sur le téléphone → playlists, tags, boucle, minuteur sommeil. Sans pub.
 
@@ -26,25 +26,21 @@ gh repo create subliminaux --private --source=. --push
    - Functions : `netlify/functions`
 4. **Deploy site**
 
-### 3. Variables d’environnement (recommandé)
+### 3. Variables d’environnement (optionnel)
 
-Dans Netlify → **Site configuration** → **Environment variables** :
+| Variable | Valeur |
+|----------|--------|
+| `YOUTUBE_PROXY_SECRET` | Phrase secrète (recommandé) |
+| `COBALT_API_KEY` | Secours si yt-dlp échoue en prod |
 
-| Variable | Valeur | Obligatoire |
-|----------|--------|-------------|
-| `YOUTUBE_PROXY_SECRET` | Une phrase longue au hasard | Recommandé |
-| `COBALT_API_KEY` | Clé API [cobalt.tools](https://cobalt.tools) | Si l’import YouTube échoue souvent |
-| `COBALT_API_URL` | `https://api.cobalt.tools` | Non (défaut) |
+L’import YouTube fonctionne **sans clé** grâce à yt-dlp (téléchargé auto sur Netlify au 1er import).
 
-Puis **Trigger deploy** une fois.
-
-L’import essaie d’abord des instances **Piped** (gratuit), puis **Cobalt** si tu as mis une clé.
-
-### 4. Sur son iPhone
+### 4. Sur son iPhone (écoute verrouillée + autre app)
 
 1. Ouvre l’URL Netlify dans **Safari**
-2. Partager → **Sur l’écran d’accueil**
-3. Utilise l’app comme une app native
+2. Partager → **Sur l’écran d’accueil** (obligatoire pour la lecture en arrière-plan)
+3. Lance la lecture **depuis l’app installée** (pas seulement un onglet Safari)
+4. Verrouille ou change d’app : les contrôles apparaissent sur l’écran de verrouillage / dans le centre de contrôle (pochette, titre, ⏯, suivant/précédent)
 
 ## Développement local
 
@@ -66,12 +62,15 @@ Ouvre l’URL affichée (souvent `http://localhost:8888`).
 ## Fonctionnalités
 
 - Import YouTube → stockage local (IndexedDB)
+- **Créer** : musique YouTube + affirmations (texte manuel, voix très basse en boucle, mix gratuit)
 - Bibliothèque, tags, playlists
 - Lecture en boucle
 - Minuteur sommeil (fade out)
-- Media Session (contrôles écran verrouillé quand iOS le permet)
+- Lecture en arrière-plan + **mode lecteur** (écran verrouillé, centre de contrôle iOS / Android)
 - PWA installable, zéro pub
 
 ## Coût
 
-Gratuit (Netlify Free + GitHub) pour usage perso.
+Gratuit (Netlify Free + GitHub + synthèse vocale Edge) pour usage perso.
+
+L’onglet **Créer** utilise la fonction `tts-batch` (voix Microsoft Edge, sans clé API) et le mixage se fait dans le navigateur.

@@ -13,7 +13,7 @@ export async function resolveViaPiped(videoId) {
   for (const base of INSTANCES) {
     try {
       const res = await fetch(`${base}/streams/${videoId}`, {
-        headers: { 'User-Agent': 'Subliminaux/1.0' },
+        headers: { 'User-Agent': 'Sublimilou/1.0' },
         signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) continue;

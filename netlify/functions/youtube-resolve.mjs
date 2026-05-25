@@ -2,10 +2,13 @@ import {
   corsPreflight,
   extractVideoId,
   jsonResponse,
+  normalizeYoutubeUrl,
   signStream,
 } from './utils.mjs';
+import { resolveViaYtdlp } from './providers/ytdlp.mjs';
 import { resolveViaPiped } from './providers/piped.mjs';
 import { resolveViaCobalt } from './providers/cobalt.mjs';
+import { resolveViaInvidious } from './providers/invidious.mjs';
 
 export default async (req) => {
   if (req.method === 'OPTIONS') return corsPreflight();
@@ -13,13 +16,27 @@ export default async (req) => {
 
   try {
     const { url } = await req.json();
+    const normalized = normalizeYoutubeUrl(url);
     const videoId = extractVideoId(url);
-    if (!videoId) return jsonResponse({ error: 'Lien YouTube invalide' }, 400);
 
-    let result = await resolveViaPiped(videoId);
+    if (!normalized || !videoId) {
+      return jsonResponse(
+        {
+          error:
+            'Lien invalide. Vérifie qu’il commence par https://www.youtube.com/… ou youtu.be/…',
+          code: 'INVALID_URL',
+        },
+        400,
+      );
+    }
+
+    let result = await resolveViaYtdlp(normalized, videoId);
+
+    if (!result) result = await resolveViaPiped(videoId);
+    if (!result) result = await resolveViaInvidious(videoId);
 
     if (!result) {
-      const cobalt = await resolveViaCobalt(url);
+      const cobalt = await resolveViaCobalt(normalized);
       if (cobalt) {
         result = { videoId, ...cobalt };
         if (!result.thumbnail) {
@@ -32,7 +49,8 @@ export default async (req) => {
       return jsonResponse(
         {
           error:
-            'Impossible de récupérer l’audio pour l’instant. Réessaie dans quelques minutes, ou ajoute une clé Cobalt (voir README).',
+            'Impossible de récupérer l’audio pour l’instant. Vérifie le lien et réessaie dans quelques minutes.',
+          code: 'NO_STREAM',
         },
         503,
       );

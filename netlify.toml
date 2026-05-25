@@ -6,6 +6,15 @@
 [functions]
   node_bundler = "esbuild"
 
+[functions."youtube-resolve"]
+  timeout = 26
+
+[functions."youtube-stream"]
+  timeout = 26
+
+[functions."tts-batch"]
+  timeout = 26
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

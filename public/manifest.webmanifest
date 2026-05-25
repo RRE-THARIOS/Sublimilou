@@ -1,18 +1,26 @@
 {
-  "name": "Subliminaux",
-  "short_name": "Subliminaux",
+  "name": "Sublimilou",
+  "short_name": "Sublimilou",
   "description": "Tes subliminaux — playlists, tags, minuteur sommeil",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#120e1c",
-  "theme_color": "#1a1228",
+  "categories": ["music", "entertainment"],
+  "background_color": "#FFF9F5",
+  "theme_color": "#FFF9F5",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

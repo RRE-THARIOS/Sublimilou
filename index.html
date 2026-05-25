@@ -4,69 +4,209 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no"
     />
-    <meta name="theme-color" content="#1a1228" />
+    <meta name="theme-color" content="#FFF9F5" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="description" content="Tes subliminaux — playlists, tags, minuteur sommeil" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="apple-mobile-web-app-title" content="Sublimilou" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Sublimilou — tes subliminaux, playlists, écoute en fond, sans pub" />
+    <link rel="icon" href="/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>Subliminaux</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Sublimilou</title>
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('sublimilou-theme') === 'dark') {
+            document.documentElement.dataset.theme = 'dark';
+            document.documentElement.style.colorScheme = 'dark';
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m) m.setAttribute('content', '#241f26');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body>
-    <div id="app">
-      <header class="header">
-        <div class="brand">
-          <span class="brand-icon">✦</span>
-          <h1>Subliminaux</h1>
+  <body class="splash-active">
+    <div id="splash" class="splash" role="presentation" aria-hidden="true">
+      <div class="splash-bg" aria-hidden="true"></div>
+      <div class="splash-orb" aria-hidden="true"></div>
+      <div class="splash-inner">
+        <img class="splash-logo" src="/icon-192.png" alt="" width="112" height="112" decoding="async" />
+        <p class="splash-brand">Sublimilou</p>
+        <div class="splash-rule" aria-hidden="true"></div>
+        <h1 class="splash-message">
+          <span class="splash-message-line">Passe une merveilleuse nuit</span>
+          <em class="splash-message-accent">mon amour</em>
+        </h1>
+      </div>
+    </div>
+
+    <div id="app" class="app">
+      <header class="app-header" id="top-bar">
+        <div class="header-row" id="header-default">
+          <button type="button" class="header-brand" id="go-home" aria-label="Accueil">
+            <img class="brand-logo" src="/icon-192.png" alt="" width="32" height="32" decoding="async" />
+            <span class="brand-name">Sublimilou</span>
+          </button>
+          <div class="header-actions">
+            <button
+              type="button"
+              class="header-icon-btn header-icon-btn--theme"
+              id="toggle-theme"
+              aria-label="Activer le mode sombre"
+              aria-pressed="false"
+            >
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="header-icon-btn" id="open-search" aria-label="Rechercher">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
-        <p class="tagline">Pour toi, sans pub</p>
+        <div class="header-row header-search-mode hidden" id="header-search">
+          <button type="button" class="header-icon-btn" id="close-search" aria-label="Fermer">
+            <span class="ui-icon" aria-hidden="true"></span>
+          </button>
+          <input type="search" class="header-search-input" id="global-search" placeholder="Titres, tags, playlists…" autocomplete="off" enterkeyhint="search" />
+        </div>
       </header>
 
-      <main id="main"></main>
+      <main id="main" class="main"></main>
 
-      <nav class="bottom-nav">
-        <button class="nav-btn active" data-view="library" id="nav-library">
-          <span>♫</span>
+      <nav class="tab-bar" aria-label="Navigation">
+        <button type="button" class="tab active" data-view="home" id="nav-home">
+          <span class="ui-icon" aria-hidden="true"></span>
+          <span>Accueil</span>
+        </button>
+        <button type="button" class="tab" data-view="library" id="nav-library">
+          <span class="ui-icon" aria-hidden="true"></span>
           <span>Biblio</span>
         </button>
-        <button class="nav-btn" data-view="playlists" id="nav-playlists">
-          <span>☰</span>
+        <button type="button" class="tab" data-view="playlists" id="nav-playlists">
+          <span class="ui-icon" aria-hidden="true"></span>
           <span>Playlists</span>
         </button>
-        <button class="nav-btn" data-view="import" id="nav-import">
-          <span>＋</span>
+        <button type="button" class="tab" data-view="create" id="nav-create">
+          <span class="ui-icon" aria-hidden="true"></span>
+          <span>Créer</span>
+        </button>
+        <button type="button" class="tab" data-view="import" id="nav-import">
+          <span class="ui-icon" aria-hidden="true"></span>
           <span>Ajouter</span>
         </button>
       </nav>
 
-      <footer id="player-bar" class="player-bar hidden">
-        <img id="player-thumb" class="player-thumb" alt="" />
-        <div class="player-body">
-          <p id="player-title" class="player-title">—</p>
-          <div id="progress-bar" class="progress-bar">
-            <div id="progress-fill" class="progress-fill"></div>
+      <!-- Mini lecteur -->
+      <footer class="mini-player hidden" id="mini-player">
+        <button type="button" class="mini-player-main" id="expand-player">
+          <img class="mini-thumb" id="mini-thumb" alt="" />
+          <div class="mini-info">
+            <p class="mini-title" id="mini-title">—</p>
+            <p class="mini-sub" id="mini-sub"></p>
           </div>
-          <p class="player-meta">
-            <span id="player-time">0:00</span>
-            <span id="timer-remaining" hidden></span>
-          </p>
-        </div>
-        <div class="player-controls">
-          <button id="player-loop" class="icon-btn" data-on="true" title="Boucle">🔁</button>
-          <select id="sleep-timer" class="timer-select" title="Minuteur">
-            <option value="0">⏱ Off</option>
-            <option value="15">15 min</option>
-            <option value="30">30 min</option>
-            <option value="60">1 h</option>
-            <option value="120">2 h</option>
-            <option value="480">8 h</option>
-          </select>
-          <button id="player-play" class="icon-btn play-main">▶</button>
+        </button>
+        <div class="mini-controls">
+          <button type="button" class="icon-btn sm" id="mini-prev" aria-label="Précédent">
+            <span class="ui-icon" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="icon-btn sm play" id="mini-play" aria-label="Lecture"></button>
+          <button type="button" class="icon-btn sm" id="mini-next" aria-label="Suivant">
+            <span class="ui-icon" aria-hidden="true"></span>
+          </button>
         </div>
       </footer>
+
+      <!-- Lecteur plein écran -->
+      <div class="player-sheet hidden" id="player-sheet" aria-hidden="true">
+        <div class="sheet-backdrop" id="sheet-backdrop" aria-hidden="true"></div>
+        <div class="sheet-panel">
+          <header class="sheet-header">
+            <button type="button" class="sheet-down" id="collapse-player" aria-label="Réduire">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+            <p class="sheet-context" id="sheet-context">En lecture</p>
+            <button type="button" class="icon-btn sm ghost" id="open-queue" aria-label="File d'attente">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+          </header>
+
+          <div class="sheet-art">
+            <img id="sheet-thumb" alt="" />
+          </div>
+          <h2 class="sheet-title" id="sheet-title">—</h2>
+          <div class="sheet-tags-block" id="sheet-tags-block" hidden>
+            <p class="sheet-tags-label">Tags</p>
+            <div class="sheet-tags-display" id="sheet-tags-display"></div>
+          </div>
+
+          <div class="sheet-pl-row" id="sheet-pl-row">
+            <button type="button" class="sheet-pl-btn" id="sheet-add-pl-btn">Ajouter à une playlist</button>
+          </div>
+
+          <div class="progress-block">
+            <div class="progress-track" id="sheet-progress">
+              <div class="progress-fill" id="sheet-progress-fill"></div>
+            </div>
+            <div class="progress-times">
+              <span id="sheet-time-cur">0:00</span>
+              <span id="sheet-time-dur">0:00</span>
+            </div>
+          </div>
+
+          <div class="transport">
+            <button type="button" class="transport-btn" id="btn-shuffle" data-active="false" aria-label="Aléatoire">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="transport-btn lg" id="btn-prev" aria-label="Précédent">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="transport-btn play-lg" id="btn-play" aria-label="Lecture"></button>
+            <button type="button" class="transport-btn lg" id="btn-next" aria-label="Suivant">
+              <span class="ui-icon" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="transport-btn transport-btn--timer" id="sleep-timer-btn" data-minutes="0" data-active="false" aria-label="Minuteur de sommeil">
+              <span class="ui-icon transport-icon" id="sleep-timer-icon" aria-hidden="true"></span>
+              <span class="timer-badge hidden" id="timer-badge" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="transport-btn" id="btn-repeat" data-mode="off" data-active="false" aria-label="Répétition désactivée">
+              <span class="ui-icon transport-icon" id="repeat-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="queue-panel is-collapsed" id="queue-panel">
+            <h3 class="queue-panel-title">À suivre <span class="queue-panel-sub">· 15 titres en boucle</span></h3>
+            <ul class="queue-list" id="queue-list"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="toast hidden" id="toast" role="status"></div>
+
+      <!-- Modales (remplace prompt / confirm natifs) -->
+      <div class="modal-root hidden" id="modal-root" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-backdrop" id="modal-backdrop"></div>
+        <div class="modal-card">
+          <h2 class="modal-title" id="modal-title"></h2>
+          <p class="modal-message" id="modal-message" hidden></p>
+          <div class="modal-field" id="modal-field">
+            <input type="text" id="modal-input" autocomplete="off" />
+          </div>
+          <ul class="modal-list hidden" id="modal-list" role="listbox"></ul>
+          <div class="modal-actions" id="modal-actions">
+            <button type="button" class="btn modal-btn ghost" id="modal-cancel">Annuler</button>
+            <button type="button" class="btn modal-btn primary" id="modal-confirm">OK</button>
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

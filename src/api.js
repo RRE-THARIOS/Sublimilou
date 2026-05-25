@@ -7,7 +7,13 @@ export async function resolveYoutube(url) {
     body: JSON.stringify({ url }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+  if (!res.ok) {
+    const msg = data.error || 'Erreur serveur';
+    if (data.code === 'NO_STREAM' && msg.includes('COBALT')) {
+      throw new Error(msg);
+    }
+    throw new Error(msg);
+  }
   return data;
 }
 
@@ -38,4 +44,16 @@ export async function downloadAudio(downloadToken, { onProgress } = {}) {
 
   const mime = probe.headers.get('Content-Type') || 'audio/mp4';
   return new Blob(chunks, { type: mime });
+}
+
+/** Synthèse vocale des affirmations (Netlify + edge TTS gratuit). */
+export async function synthesizeAffirmations(phrases) {
+  const res = await fetch(`${API_BASE}/tts-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phrases }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Synthèse vocale impossible');
+  return data;
 }
