@@ -27,10 +27,11 @@ async function loadInstances() {
   return FALLBACK;
 }
 
-/** Bloque LBRY/odycdn (CDN qui refuse les IP cloud Netlify). */
+/** Bloque LBRY/odycdn et URL proxy Piped (toutes refusées par Netlify). */
 function isUsableUrl(url) {
   if (!url) return false;
   if (/odycdn\.com|player\.odycdn|lbry\.tv|lbrynet/i.test(url)) return false;
+  if (/proxy\.piped\.|piped-proxy\./i.test(url)) return false;
   return true;
 }
 
