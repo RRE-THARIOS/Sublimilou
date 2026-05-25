@@ -32,7 +32,29 @@ export default async (req) => {
 
     let result = await resolveViaYtdlp(normalized, videoId);
 
-    if (!result) result = await resolveViaPiped(videoId);
+    if (result?.unavailable) {
+      return jsonResponse(
+        {
+          error:
+            'Cette vidéo n’est pas accessible (privée, supprimée ou bloquée). Essaie un autre lien public.',
+          code: 'VIDEO_UNAVAILABLE',
+        },
+        400,
+      );
+    }
+    if (result?.streamUrl) {
+      return jsonResponse({
+        videoId: result.videoId,
+        title: result.title,
+        duration: result.duration,
+        thumbnail: result.thumbnail,
+        mimeType: result.mimeType,
+        downloadToken: signStream(result.streamUrl, result.mimeType),
+      });
+    }
+
+    result = null;
+    result = await resolveViaPiped(videoId);
     if (!result) result = await resolveViaInvidious(videoId);
 
     if (!result) {
@@ -49,7 +71,7 @@ export default async (req) => {
       return jsonResponse(
         {
           error:
-            'Impossible de récupérer l’audio pour l’instant. Vérifie le lien et réessaie dans quelques minutes.',
+            'Impossible de récupérer l’audio pour l’instant. Réessaie dans quelques minutes, ou vérifie que la vidéo est bien publique sur YouTube.',
           code: 'NO_STREAM',
         },
         503,

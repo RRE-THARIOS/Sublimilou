@@ -1,24 +1,27 @@
 /** Instances publiques Piped — certaines peuvent être hors service. */
 const INSTANCES = [
   'https://pipedapi.kavin.rocks',
-  'https://api-piped.mha.fi',
-  'https://pipedapi.leptons.xyz',
   'https://pipedapi.adminforge.de',
-  'https://pipedapi.tokhmi.xyz',
+  'https://pipedapi.leptons.xyz',
   'https://pipedapi.moomoo.me',
   'https://pipedapi.syncpundit.io',
+  'https://pipedapi.in.projectsegfau.lt',
+  'https://api-piped.mha.fi',
 ];
 
 export async function resolveViaPiped(videoId) {
   for (const base of INSTANCES) {
     try {
       const res = await fetch(`${base}/streams/${videoId}`, {
-        headers: { 'User-Agent': 'Sublimilou/1.0' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Sublimilou/1.0)' },
         signal: AbortSignal.timeout(12_000),
       });
       if (!res.ok) continue;
 
-      const data = await res.json();
+      const raw = await res.text();
+      if (!raw.startsWith('{')) continue;
+      const data = JSON.parse(raw);
+      if (data.message || data.error) continue;
       const stream =
         data.audioStreams?.find((s) => s.mimeType?.includes('audio')) ||
         data.audioStreams?.[0];

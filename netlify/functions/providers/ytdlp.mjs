@@ -23,12 +23,13 @@ async function fileExists(p) {
 async function getYtdlpBinary() {
   if (cachedBinary) return cachedBinary;
 
+  const envPath = process.env.YTDLP_PATH;
   const candidates = [
-    process.env.YTDLP_PATH,
+    envPath && path.isAbsolute(envPath) ? envPath : envPath && path.join(process.cwd(), envPath),
+    path.join(ytdlpDir, '../../bin/yt-dlp'),
     '/opt/homebrew/bin/yt-dlp',
     '/usr/local/bin/yt-dlp',
     path.join('/tmp', 'yt-dlp'),
-    path.join(ytdlpDir, '../../bin/yt-dlp'),
   ].filter(Boolean);
 
   for (const bin of candidates) {
@@ -96,7 +97,11 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
       source: 'ytdlp',
     };
   } catch (err) {
-    console.error('ytdlp:', err.message);
+    const msg = String(err.stderr || err.message || err);
+    console.error('ytdlp:', msg.slice(0, 400));
+    if (/video unavailable|private video|sign in to confirm|age.restricted|not available/i.test(msg)) {
+      return { unavailable: true };
+    }
     return null;
   }
 }

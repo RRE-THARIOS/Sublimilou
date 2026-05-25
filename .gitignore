@@ -26,5 +26,8 @@ dist-ssr
 # Local Netlify folder
 .netlify
 
+# yt-dlp binaire (généré par scripts/install-ytdlp.sh au build)
+netlify/functions/bin/yt-dlp
+
 .env
 .env.local

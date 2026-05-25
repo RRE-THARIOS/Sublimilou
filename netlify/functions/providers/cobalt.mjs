@@ -6,7 +6,11 @@ export async function resolveViaCobalt(youtubeUrl) {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  if (apiKey) {
+    headers.Authorization = apiKey.startsWith('Bearer ') || apiKey.startsWith('ApiKey ')
+      ? apiKey
+      : `ApiKey ${apiKey}`;
+  }
 
   const res = await fetch(`${base.replace(/\/$/, '')}/`, {
     method: 'POST',
