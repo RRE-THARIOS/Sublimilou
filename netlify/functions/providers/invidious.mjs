@@ -1,27 +1,58 @@
-const INSTANCES = [
+const FALLBACK = [
+  'https://inv.nadeko.net',
+  'https://invidious.nerdvpn.de',
+  'https://yt.chocolatemoo53.com',
+  'https://invidious.f5.si',
   'https://yewtu.be',
   'https://invidious.fdn.fr',
-  'https://inv.nadeko.net',
-  'https://invidious.protokolla.fi',
-  'https://invidious.privacydev.net',
 ];
 
+let cachedBases = null;
+
+async function loadInstances() {
+  if (cachedBases) return cachedBases;
+  try {
+    const res = await fetch(
+      'https://api.invidious.io/instances.json?sort_by=api',
+      { signal: AbortSignal.timeout(8_000) },
+    );
+    if (res.ok) {
+      const raw = await res.json();
+      const bases = raw
+        .filter((row) => Array.isArray(row) && row[0])
+        .map((row) => `https://${row[0]}`)
+        .slice(0, 12);
+      if (bases.length) {
+        cachedBases = bases;
+        return bases;
+      }
+    }
+  } catch {
+    /* liste dynamique indisponible */
+  }
+  cachedBases = FALLBACK;
+  return FALLBACK;
+}
+
 export async function resolveViaInvidious(videoId) {
-  for (const base of INSTANCES) {
+  const bases = await loadInstances();
+
+  for (const base of bases) {
     try {
       const res = await fetch(`${base}/api/v1/videos/${videoId}`, {
-        headers: { 'User-Agent': 'Sublimilou/1.0' },
-        signal: AbortSignal.timeout(12_000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Sublimilou/1.0)' },
+        signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) continue;
 
       const text = await res.text();
-      if (text.startsWith('<')) continue;
+      if (!text.startsWith('{')) continue;
 
       const data = JSON.parse(text);
       const stream =
-        data.adaptiveFormats?.find((f) => f.type?.includes('audio') && !f.type?.includes('video')) ||
-        data.formatStreams?.find((f) => f.type?.includes('audio'));
+        data.adaptiveFormats?.find(
+          (f) => f.type?.includes('audio') && !f.type?.includes('video') && f.url,
+        ) || data.formatStreams?.find((f) => f.type?.includes('audio') && f.url);
 
       if (!stream?.url) continue;
 
@@ -35,7 +66,7 @@ export async function resolveViaInvidious(videoId) {
         source: 'invidious',
       };
     } catch {
-      /* suivant */
+      /* instance suivante */
     }
   }
   return null;

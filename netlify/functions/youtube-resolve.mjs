@@ -5,10 +5,19 @@ import {
   normalizeYoutubeUrl,
   signStream,
 } from './utils.mjs';
+import { resolveViaNodeYtdl } from './providers/node-ytdl.mjs';
 import { resolveViaYtdlp } from './providers/ytdlp.mjs';
 import { resolveViaPiped } from './providers/piped.mjs';
 import { resolveViaCobalt } from './providers/cobalt.mjs';
 import { resolveViaInvidious } from './providers/invidious.mjs';
+
+function isUnavailable(r) {
+  return r?.unavailable === true;
+}
+
+function hasStream(r) {
+  return Boolean(r?.streamUrl);
+}
 
 async function readYoutubeUrl(req) {
   if (req.method === 'POST') {
@@ -58,32 +67,31 @@ export default async (req) => {
       );
     }
 
-    let result = await resolveViaYtdlp(normalized, videoId);
+    const providers = [
+      () => resolveViaNodeYtdl(normalized, videoId),
+      () => resolveViaYtdlp(normalized, videoId),
+      () => resolveViaInvidious(videoId),
+      () => resolveViaPiped(videoId),
+    ];
 
-    if (result?.unavailable) {
-      return jsonResponse(
-        {
-          error:
-            'Cette vidéo n’est pas accessible (privée, supprimée ou bloquée). Essaie un autre lien public.',
-          code: 'VIDEO_UNAVAILABLE',
-        },
-        400,
-      );
+    const deadline = Date.now() + 24_000;
+    let result = null;
+    for (const run of providers) {
+      if (Date.now() > deadline) break;
+      result = await run();
+      if (isUnavailable(result)) {
+        return jsonResponse(
+          {
+            error:
+              'Cette vidéo n’est pas accessible (privée, supprimée ou bloquée). Essaie un autre lien public.',
+            code: 'VIDEO_UNAVAILABLE',
+          },
+          400,
+        );
+      }
+      if (hasStream(result)) break;
+      result = null;
     }
-    if (result?.streamUrl) {
-      return jsonResponse({
-        videoId: result.videoId,
-        title: result.title,
-        duration: result.duration,
-        thumbnail: result.thumbnail,
-        mimeType: result.mimeType,
-        downloadToken: signStream(result.streamUrl, result.mimeType),
-      });
-    }
-
-    result = null;
-    result = await resolveViaPiped(videoId);
-    if (!result) result = await resolveViaInvidious(videoId);
 
     if (!result) {
       const cobalt = await resolveViaCobalt(normalized);
@@ -95,14 +103,15 @@ export default async (req) => {
       }
     }
 
-    if (!result?.streamUrl) {
+    if (!hasStream(result)) {
       return jsonResponse(
         {
           error:
-            'Impossible de récupérer l’audio pour l’instant. Réessaie dans quelques minutes, ou vérifie que la vidéo est bien publique sur YouTube.',
+            'Impossible de récupérer l’audio pour l’instant. Réessaie dans 1–2 minutes avec une vidéo publique, ou contacte le support si ça persiste.',
           code: 'NO_STREAM',
+          hint: 'Les services YouTube tiers sont instables ; un second essai suffit souvent.',
         },
-        503,
+        502,
       );
     }
 

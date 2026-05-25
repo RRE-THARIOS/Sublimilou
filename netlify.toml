@@ -12,6 +12,7 @@
 
 [functions."youtube-resolve"]
   timeout = 26
+  external_node_modules = ["@distube/ytdl-core"]
 
 [functions."youtube-stream"]
   timeout = 26
