@@ -29,5 +29,8 @@ dist-ssr
 # yt-dlp binaire (généré par scripts/install-ytdlp.sh au build)
 netlify/functions/bin/yt-dlp
 
+# Fichiers debug ytdl-core (générés localement)
+*-player-script.js
+
 .env
 .env.local
