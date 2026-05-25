@@ -1,0 +1,18 @@
+{
+  "name": "Subliminaux",
+  "short_name": "Subliminaux",
+  "description": "Tes subliminaux — playlists, tags, minuteur sommeil",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120e1c",
+  "theme_color": "#1a1228",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
