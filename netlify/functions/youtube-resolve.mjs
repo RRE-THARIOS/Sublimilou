@@ -20,14 +20,33 @@ function hasStream(r) {
 }
 
 async function readYoutubeUrl(req) {
-  if (req.method === 'POST') {
-    const body = await req.json();
-    return body?.url;
+  const fromQuery = new URL(req.url).searchParams.get('url');
+  if (fromQuery?.trim()) return fromQuery.trim();
+
+  if (req.method !== 'POST') return null;
+
+  try {
+    const ct = req.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const body = await req.json();
+      const u = body?.url;
+      return typeof u === 'string' ? u.trim() : null;
+    }
+    const text = await req.text();
+    if (!text) return null;
+    if (ct.includes('application/x-www-form-urlencoded')) {
+      return new URLSearchParams(text).get('url')?.trim() || null;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      return typeof parsed?.url === 'string' ? parsed.url.trim() : null;
+    } catch {
+      return null;
+    }
+  } catch (err) {
+    console.error('readYoutubeUrl:', err.message);
+    return null;
   }
-  if (req.method === 'GET') {
-    return new URL(req.url).searchParams.get('url');
-  }
-  return null;
 }
 
 export default async (req) => {
@@ -44,9 +63,7 @@ export default async (req) => {
       return jsonResponse(
         {
           error:
-            req.method === 'GET'
-              ? 'Ajoute ?url=https://www.youtube.com/watch?v=… ou utilise le bouton « Importer » dans l’app.'
-              : 'Corps JSON manquant : { "url": "https://www.youtube.com/…" }',
+            'Lien YouTube manquant côté serveur. Ferme l’app, rouvre-la depuis l’icône, puis réessaie « Importer ».',
           code: 'MISSING_URL',
         },
         400,

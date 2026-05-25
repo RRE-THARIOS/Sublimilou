@@ -1,18 +1,29 @@
 const API_BASE = '/api';
 
 export async function resolveYoutube(url) {
-  const res = await fetch(`${API_BASE}/youtube-resolve`, {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) throw new Error('Colle un lien YouTube avant d’importer.');
+
+  const q = `url=${encodeURIComponent(trimmed)}`;
+  const endpoint = `${API_BASE}/youtube-resolve?${q}`;
+
+  let res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url: trimmed }),
+    cache: 'no-store',
   });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    if (data.code === 'MISSING_URL') {
+      res = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+    }
+  }
+
   const data = await res.json();
   if (!res.ok) {
-    const msg = data.error || 'Erreur serveur';
-    if (data.code === 'NO_STREAM' && msg.includes('COBALT')) {
-      throw new Error(msg);
-    }
-    throw new Error(msg);
+    throw new Error(data.error || 'Erreur serveur');
   }
   return data;
 }
