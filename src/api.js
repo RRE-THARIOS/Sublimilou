@@ -7,9 +7,14 @@ export async function resolveYoutube(url) {
   const q = `url=${encodeURIComponent(trimmed)}`;
   const endpoint = `${API_BASE}/youtube-resolve?${q}`;
 
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Youtube-Url': trimmed,
+  };
+
   let res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ url: trimmed }),
     cache: 'no-store',
   });
@@ -17,7 +22,7 @@ export async function resolveYoutube(url) {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (data.code === 'MISSING_URL') {
-      res = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
+      res = await fetch(endpoint, { method: 'GET', headers, cache: 'no-store' });
     }
   }
 

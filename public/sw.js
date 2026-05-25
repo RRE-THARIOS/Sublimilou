@@ -1,5 +1,5 @@
-const CACHE = 'sublimilou-v42';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png'];
+const CACHE = 'sublimilou-v43';
+const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -23,6 +23,18 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api') || url.pathname.includes('netlify/functions')) return;
+
+  const isDocument =
+    e.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname === '/index.html';
+
+  if (isDocument) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match('/index.html')),
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(e.request).then((cached) => {

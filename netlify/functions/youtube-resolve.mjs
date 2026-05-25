@@ -20,6 +20,9 @@ function hasStream(r) {
 }
 
 async function readYoutubeUrl(req) {
+  const fromHeader = req.headers.get('x-youtube-url') || req.headers.get('x-sublimilou-youtube-url');
+  if (fromHeader?.trim()) return fromHeader.trim();
+
   const fromQuery = new URL(req.url).searchParams.get('url');
   if (fromQuery?.trim()) return fromQuery.trim();
 

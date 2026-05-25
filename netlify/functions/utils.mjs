@@ -79,7 +79,8 @@ export function corsPreflight() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Range',
+      'Access-Control-Allow-Headers':
+        'Content-Type, Range, X-Youtube-Url, X-Sublimilou-Youtube-Url',
     },
   });
 }
