@@ -88,10 +88,10 @@ export default async (req) => {
     }
 
     const providers = [
+      () => resolveViaPiped(videoId),
       () => resolveViaYtdlp(normalized, videoId),
       () => resolveViaNodeYtdl(normalized, videoId),
       () => resolveViaInvidious(videoId),
-      () => resolveViaPiped(videoId),
     ];
 
     const deadline = Date.now() + 24_000;

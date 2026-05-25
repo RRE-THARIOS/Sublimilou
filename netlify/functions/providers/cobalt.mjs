@@ -27,9 +27,11 @@ export async function resolveViaCobalt(youtubeUrl) {
   if (!res.ok) return null;
 
   const data = await res.json();
-  if (data.status !== 'success' && data.status !== 'redirect') return null;
+  const streamUrl =
+    data.url ||
+    data.audioUrl ||
+    (data.status === 'tunnel' || data.status === 'redirect' ? data.url : null);
 
-  const streamUrl = data.url || data.audioUrl;
   if (!streamUrl) return null;
 
   return {

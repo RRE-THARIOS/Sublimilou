@@ -1,4 +1,4 @@
-const CACHE = 'sublimilou-v44';
+const CACHE = 'sublimilou-v45';
 const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -21,20 +21,12 @@ self.addEventListener('message', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api') || url.pathname.includes('netlify/functions')) return;
 
-  const isDocument =
-    e.request.mode === 'navigate' ||
-    url.pathname === '/' ||
-    url.pathname === '/index.html';
-
-  if (isDocument) {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/index.html')),
-    );
-    return;
-  }
+  // Pages HTML : toujours le réseau (évite vieux bundles + erreur Response undefined)
+  if (e.request.mode === 'navigate') return;
 
   e.respondWith(
     caches.match(e.request).then((cached) => {
