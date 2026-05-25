@@ -88,28 +88,35 @@ export default async (req) => {
     }
 
     const providers = [
-      () => resolveViaPiped(videoId),
-      () => resolveViaYtdlp(normalized, videoId),
-      () => resolveViaNodeYtdl(normalized, videoId),
-      () => resolveViaInvidious(videoId),
+      { name: 'ytdlp', run: () => resolveViaYtdlp(normalized, videoId) },
+      { name: 'ytdl-core', run: () => resolveViaNodeYtdl(normalized, videoId) },
+      { name: 'piped', run: () => resolveViaPiped(videoId) },
+      { name: 'invidious', run: () => resolveViaInvidious(videoId) },
     ];
 
     const deadline = Date.now() + 24_000;
     let result = null;
     let unavailableHits = 0;
+    const tried = [];
 
-    for (const run of providers) {
+    for (const { name, run } of providers) {
       if (Date.now() > deadline) break;
+      const t0 = Date.now();
       const attempt = await run();
+      const ms = Date.now() - t0;
       if (isUnavailable(attempt)) {
+        tried.push(`${name}:unavailable:${ms}ms`);
         unavailableHits += 1;
         continue;
       }
       if (hasStream(attempt)) {
+        tried.push(`${name}:OK:${ms}ms`);
         result = attempt;
         break;
       }
+      tried.push(`${name}:fail:${ms}ms`);
     }
+    console.log('youtube-resolve providers:', tried.join(' | '));
 
     if (!result) {
       const cobalt = await resolveViaCobalt(normalized);
@@ -137,7 +144,7 @@ export default async (req) => {
           error:
             'Impossible de récupérer l’audio pour l’instant. Réessaie dans 1–2 minutes avec une vidéo publique, ou contacte le support si ça persiste.',
           code: 'NO_STREAM',
-          hint: 'Les services YouTube tiers sont instables ; un second essai suffit souvent.',
+          providers: tried,
         },
         502,
       );

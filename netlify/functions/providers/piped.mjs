@@ -27,19 +27,34 @@ async function loadInstances() {
   return FALLBACK;
 }
 
+/** Bloque LBRY/odycdn (CDN qui refuse les IP cloud Netlify). */
+function isUsableUrl(url) {
+  if (!url) return false;
+  if (/odycdn\.com|player\.odycdn|lbry\.tv|lbrynet/i.test(url)) return false;
+  return true;
+}
+
 function pickStream(data) {
   const audio =
-    data.audioStreams?.find((s) => s.url && s.mimeType?.includes('audio')) ||
-    data.audioStreams?.find((s) => s.url);
+    data.audioStreams?.find(
+      (s) => isUsableUrl(s.url) && s.mimeType?.includes('audio'),
+    ) || data.audioStreams?.find((s) => isUsableUrl(s.url));
   if (audio?.url) return audio;
 
   const muxed =
     data.videoStreams?.find(
-      (s) => s.url && !s.videoOnly && s.mimeType?.includes('video'),
-    ) || data.videoStreams?.find((s) => s.url && !s.videoOnly);
+      (s) =>
+        isUsableUrl(s.url) &&
+        !s.videoOnly &&
+        !s.quality?.startsWith('LBRY') &&
+        s.mimeType?.includes('video'),
+    ) ||
+    data.videoStreams?.find(
+      (s) => isUsableUrl(s.url) && !s.videoOnly && !s.quality?.startsWith('LBRY'),
+    );
   if (muxed?.url) return muxed;
 
-  return data.videoStreams?.find((s) => s.url) || null;
+  return null;
 }
 
 export async function resolveViaPiped(videoId) {
@@ -59,15 +74,16 @@ export async function resolveViaPiped(videoId) {
 
       const data = JSON.parse(raw);
       const stream = pickStream(data);
-      if (!stream?.url) continue;
+      if (!stream?.url) {
+        console.log('piped: no usable stream from', base);
+        continue;
+      }
 
       return {
         videoId,
         title: data.title || 'Sans titre',
         duration: data.duration || 0,
-        thumbnail:
-          data.thumbnailUrl?.replace(/proxy\.[^/]+\//, '') ||
-          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
         mimeType: stream.mimeType || 'audio/mp4',
         streamUrl: stream.url,
         source: 'piped',
