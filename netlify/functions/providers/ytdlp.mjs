@@ -104,7 +104,7 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
         };
       } catch (inner) {
         const msg = String(inner.stderr || inner.message || inner);
-        if (/video unavailable|private video|sign in to confirm|age.restricted/i.test(msg)) {
+        if (/video unavailable|private video|this video is not available|has been removed/i.test(msg)) {
           return { unavailable: true };
         }
         console.error('ytdlp try:', msg.slice(0, 200));
@@ -114,7 +114,7 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
   } catch (err) {
     const msg = String(err.stderr || err.message || err);
     console.error('ytdlp:', msg.slice(0, 400));
-    if (/video unavailable|private video|sign in to confirm|age.restricted|not available/i.test(msg)) {
+    if (/video unavailable|private video|this video is not available|has been removed/i.test(msg)) {
       return { unavailable: true };
     }
     return null;

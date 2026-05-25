@@ -88,29 +88,27 @@ export default async (req) => {
     }
 
     const providers = [
-      () => resolveViaNodeYtdl(normalized, videoId),
       () => resolveViaYtdlp(normalized, videoId),
+      () => resolveViaNodeYtdl(normalized, videoId),
       () => resolveViaInvidious(videoId),
       () => resolveViaPiped(videoId),
     ];
 
     const deadline = Date.now() + 24_000;
     let result = null;
+    let unavailableHits = 0;
+
     for (const run of providers) {
       if (Date.now() > deadline) break;
-      result = await run();
-      if (isUnavailable(result)) {
-        return jsonResponse(
-          {
-            error:
-              'Cette vidéo n’est pas accessible (privée, supprimée ou bloquée). Essaie un autre lien public.',
-            code: 'VIDEO_UNAVAILABLE',
-          },
-          400,
-        );
+      const attempt = await run();
+      if (isUnavailable(attempt)) {
+        unavailableHits += 1;
+        continue;
       }
-      if (hasStream(result)) break;
-      result = null;
+      if (hasStream(attempt)) {
+        result = attempt;
+        break;
+      }
     }
 
     if (!result) {
@@ -124,6 +122,16 @@ export default async (req) => {
     }
 
     if (!hasStream(result)) {
+      if (unavailableHits >= 2) {
+        return jsonResponse(
+          {
+            error:
+              'Cette vidéo n’est pas accessible (privée, supprimée ou bloquée). Essaie un autre lien public.',
+            code: 'VIDEO_UNAVAILABLE',
+          },
+          400,
+        );
+      }
       return jsonResponse(
         {
           error:

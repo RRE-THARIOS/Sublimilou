@@ -24,7 +24,11 @@ export async function resolveViaNodeYtdl(normalizedUrl, videoId) {
   } catch (err) {
     const msg = String(err.message || err);
     console.error('ytdl-core:', msg.slice(0, 300));
-    if (/unavailable|private|sign in|age|not available/i.test(msg)) {
+    if (
+      /video unavailable|private video|this video is not available|has been removed|copyright/i.test(
+        msg,
+      )
+    ) {
       return { unavailable: true };
     }
     return null;
