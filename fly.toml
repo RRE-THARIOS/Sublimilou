@@ -1,12 +1,12 @@
-# fly.toml app configuration file generated for sublimilou on 2026-05-29T16:59:31Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
+# https://fly.io/docs/reference/configuration/
 app = 'sublimilou'
 primary_region = 'ams'
 
 [build]
+
+[env]
+  PORT = '8080'
+  YTDLP_PATH = '/usr/local/bin/yt-dlp'
 
 [http_service]
   internal_port = 8080
@@ -17,7 +17,6 @@ primary_region = 'ams'
   processes = ['app']
 
 [[vm]]
-  memory = '1gb'
+  memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256

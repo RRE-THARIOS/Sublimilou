@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server/index.mjs",
     "build": "vite build",
-    "preview": "vite preview"
+    "start": "node server/index.mjs",
+    "preview": "npm run build && npm run start",
+    "tunnel": "bash scripts/tunnel.sh"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
+    "@supabase/supabase-js": "^2.106.2",
     "idb": "^8.0.3",
     "msedge-tts": "^2.0.5",
+    "tslib": "^2.8.1",
     "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {

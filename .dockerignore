@@ -1,1 +1,10 @@
-fly.toml
+node_modules
+dist
+.git
+.env
+.env.local
+.netlify
+*.log
+ChatGPT Image*.png
+deno.lock
+agent-tools

@@ -1,6 +1,6 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { access, chmod, writeFile } from 'fs/promises';
+import { access, chmod } from 'fs/promises';
 import { constants } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -10,12 +10,10 @@ const execFileAsync = promisify(execFile);
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 let cachedBinary = null;
-let cachedCookieFile = null;
 
 const CLIENT_ARG_SETS = [
-  ['--extractor-args', 'youtube:player_client=tv_embedded'],
-  ['--extractor-args', 'youtube:player_client=android'],
   [],
+  ['--extractor-args', 'youtube:player_client=tv_embedded'],
 ];
 
 async function fileExists(p) {
@@ -62,32 +60,7 @@ async function getYtdlpBinary() {
   return tmpBin;
 }
 
-/** Écrit les cookies YouTube fournis via env var dans /tmp pour yt-dlp. */
-async function getCookieFile() {
-  if (cachedCookieFile !== null) return cachedCookieFile;
-  const raw = process.env.YOUTUBE_COOKIES;
-  if (!raw || raw.trim().length < 10) {
-    cachedCookieFile = '';
-    return '';
-  }
-  try {
-    const file = path.join('/tmp', 'yt-cookies.txt');
-    let content = raw;
-    if (!content.startsWith('# Netscape')) {
-      content = `# Netscape HTTP Cookie File\n${content}`;
-    }
-    await writeFile(file, content, 'utf8');
-    cachedCookieFile = file;
-    console.log('yt-dlp cookies file:', file, content.length, 'bytes');
-    return file;
-  } catch (err) {
-    console.error('cookie write fail:', err.message);
-    cachedCookieFile = '';
-    return '';
-  }
-}
-
-async function runOnce(binary, url, extraArgs, cookieFile) {
+async function runOnce(binary, url, extraArgs) {
   const args = [
     '-f',
     'ba/b',
@@ -96,12 +69,9 @@ async function runOnce(binary, url, extraArgs, cookieFile) {
     '--no-warnings',
     '--socket-timeout',
     '15',
-    '--user-agent',
-    'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+    ...extraArgs,
+    url,
   ];
-  if (cookieFile) args.push('--cookies', cookieFile);
-  args.push(...extraArgs, url);
-
   const { stdout } = await execFileAsync(binary, args, {
     timeout: 22_000,
     maxBuffer: 3 * 1024 * 1024,
@@ -115,11 +85,10 @@ async function runOnce(binary, url, extraArgs, cookieFile) {
 export async function resolveViaYtdlp(normalizedUrl, videoId) {
   try {
     const binary = await getYtdlpBinary();
-    const cookieFile = await getCookieFile();
 
     for (const extra of CLIENT_ARG_SETS) {
       try {
-        const fmt = await runOnce(binary, normalizedUrl, extra, cookieFile);
+        const fmt = await runOnce(binary, normalizedUrl, extra);
         if (!fmt?.url) continue;
 
         return {

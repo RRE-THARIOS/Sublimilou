@@ -2,6 +2,10 @@ import { resolveYoutube, downloadAudio, synthesizeAffirmations } from './api.js'
 import { mixSubliminal, DEFAULT_VOICE_GAIN, MAX_BASE_DURATION_SEC } from './mix-subliminal.js';
 import { normalizeYoutubeUrl } from './youtube.js';
 import {
+  ensureCloudSessionAuto,
+  onCloudAuthChange,
+} from './supabase.js';
+import {
   deletePlaylist,
   deleteTrack,
   getAllPlaylists,
@@ -124,6 +128,10 @@ function syncSleepTimerButton(minutes, remainingMs = 0) {
 }
 
 export async function initApp() {
+  await ensureCloudSessionAuto();
+  onCloudAuthChange(() => {
+    refreshData().then(render).catch(() => {});
+  });
   mountShellIcons();
   mountThemeToggle();
   await loadSettings();
@@ -135,6 +143,7 @@ export async function initApp() {
   render();
   subscribe(onPlayerState);
   registerServiceWorker();
+  requestPersistentStorage();
 }
 
 async function refreshData() {
@@ -1284,8 +1293,7 @@ function parseAffirmationLines(text) {
   return String(text || '')
     .split('\n')
     .map((l) => l.trim())
-    .filter(Boolean)
-    .slice(0, 5);
+    .filter(Boolean);
 }
 
 function renderCreate() {
@@ -1302,7 +1310,7 @@ function renderCreate() {
           <span class="create-panel-icon ui-icon">${iconCreate}</span>
           <div>
             <h2>Ton subliminal</h2>
-            <p class="hint">1 à 5 lignes · 1 phrase par ligne · piste max ${MAX_BASE_DURATION_SEC / 60} min</p>
+            <p class="hint">1 phrase par ligne · piste max ${MAX_BASE_DURATION_SEC / 60} min</p>
           </div>
         </div>
         <form id="create-form" class="create-form">
@@ -1329,13 +1337,13 @@ function renderCreate() {
               <textarea
                 id="create-affirmations"
                 class="create-textarea"
-                rows="5"
+                rows="10"
                 placeholder="Je suis calme et confiante&#10;Mon corps se transforme chaque jour&#10;Je mérite le meilleur"
                 required
                 spellcheck="true"
               ></textarea>
             </div>
-            <p class="field-hint">Jusqu'à 5 lignes · répétées en boucle, voix imperceptible</p>
+            <p class="field-hint">Répétées en boucle, voix imperceptible</p>
           </label>
           <div class="field field-tags">
             <span>Tags (optionnel)</span>
@@ -1400,7 +1408,7 @@ async function handleCreate(e) {
     }
 
     setProgress(8, `Téléchargement · ${meta.title}`);
-    const musicBlob = await downloadAudio(meta.downloadToken, {
+    const musicBlob = await downloadAudio(meta, {
       onProgress: (p) => setProgress(8 + Math.round(p * 42), `Téléchargement… ${Math.round(p * 100)}%`),
     });
 
@@ -1520,7 +1528,7 @@ async function handleImport(e) {
     const meta = await resolveYoutube(normalized);
     status.textContent = `Téléchargement · ${meta.title}`;
 
-    const blob = await downloadAudio(meta.downloadToken, {
+    const blob = await downloadAudio(meta, {
       onProgress: (p) => {
         progress.value = p * 100;
         status.textContent = `Téléchargement… ${Math.round(p * 100)}%`;
@@ -1601,5 +1609,17 @@ async function registerServiceWorker() {
     } catch {
       /* optional */
     }
+  }
+}
+
+/** Demande au navigateur de ne jamais expulser les données sans action explicite.
+ *  Sans ça, iOS/Android peut vider IndexedDB si le stockage est sous pression. */
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return;
+  try {
+    const already = await navigator.storage.persisted();
+    if (!already) await navigator.storage.persist();
+  } catch {
+    /* silencieux si refusé */
   }
 }

@@ -34,3 +34,7 @@ netlify/functions/bin/yt-dlp
 
 .env
 .env.local
+
+# Cookies YouTube (accès compte — ne jamais versionner)
+cookies.txt
+cookies.b64

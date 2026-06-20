@@ -1,5 +1,5 @@
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
-import { corsPreflight, jsonResponse } from './utils.mjs';
+import { readJson, sendJson } from '../lib/http.mjs';
 
 const VOICE = 'fr-FR-DeniseNeural';
 const MAX_PHRASE_LEN = 220;
@@ -18,20 +18,21 @@ async function synthesizePhrase(tts, text) {
   return streamToBuffer(audioStream);
 }
 
-export default async (req) => {
-  if (req.method === 'OPTIONS') return corsPreflight();
-  if (req.method !== 'POST') return jsonResponse({ error: 'Méthode non autorisée' }, 405);
+export async function handleTtsBatch(req, res) {
+  if (req.method !== 'POST') {
+    return sendJson(res, { error: 'Méthode non autorisée' }, 405);
+  }
 
   try {
-    const body = await req.json();
-    const raw = Array.isArray(body.phrases) ? body.phrases : [];
+    const body = await readJson(req);
+    const raw = Array.isArray(body?.phrases) ? body.phrases : [];
     const phrases = raw
       .map((p) => String(p || '').trim())
       .filter(Boolean)
       .map((p) => p.slice(0, MAX_PHRASE_LEN));
 
     if (!phrases.length) {
-      return jsonResponse({ error: 'Ajoute au moins une affirmation (une ligne).' }, 400);
+      return sendJson(res, { error: 'Ajoute au moins une affirmation (une ligne).' }, 400);
     }
 
     const tts = new MsEdgeTTS();
@@ -47,12 +48,13 @@ export default async (req) => {
       });
     }
 
-    return jsonResponse({ clips, voice: VOICE });
+    return sendJson(res, { clips, voice: VOICE });
   } catch (err) {
     console.error('tts-batch', err);
-    return jsonResponse(
+    return sendJson(
+      res,
       { error: err.message || 'Synthèse vocale impossible. Réessaie dans un instant.' },
       500,
     );
   }
-};
+}
