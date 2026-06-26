@@ -1,10 +1,14 @@
 const FALLBACK = [
   'https://inv.nadeko.net',
   'https://invidious.nerdvpn.de',
-  'https://yt.chocolatemoo53.com',
-  'https://invidious.f5.si',
   'https://yewtu.be',
   'https://invidious.fdn.fr',
+  'https://invidious.privacydev.net',
+  'https://invidious.slipfox.xyz',
+  'https://iv.ggtyler.dev',
+  'https://invidious.perennialte.ch',
+  'https://yt.chocolatemoo53.com',
+  'https://invidious.f5.si',
 ];
 
 let cachedBases = null;

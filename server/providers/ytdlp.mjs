@@ -27,13 +27,17 @@ export function ytdlpBaseArgs() {
 }
 
 const CLIENT_ARG_SETS_NO_COOKIES = [
-  ['--extractor-args', 'youtube:player_client=android,web'],
   ['--extractor-args', 'youtube:player_client=tv_embedded'],
+  ['--extractor-args', 'youtube:player_client=ios'],
+  ['--extractor-args', 'youtube:player_client=android,web'],
+  ['--extractor-args', 'youtube:player_client=mweb'],
   [],
 ];
 
-/** Avec cookies : pas de client « android » (incompatible). */
+/** Avec cookies : tv_embedded et ios en priorité car moins bloqués sur IP serveur. */
 const CLIENT_ARG_SETS_WITH_COOKIES = [
+  ['--extractor-args', 'youtube:player_client=tv_embedded'],
+  ['--extractor-args', 'youtube:player_client=ios'],
   ['--extractor-args', 'youtube:player_client=web'],
   ['--extractor-args', 'youtube:player_client=mweb'],
 ];
