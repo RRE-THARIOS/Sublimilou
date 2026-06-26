@@ -7,6 +7,9 @@ export const DEFAULT_VOICE_GAIN = 0.038;
 /** Pause entre deux phrases (secondes) */
 export const PHRASE_GAP_SEC = 0.75;
 
+/** Délai avant la première voix (laisse la musique se lancer) */
+export const VOICE_START_DELAY_SEC = 4;
+
 /**
  * Décode un Blob audio en AudioBuffer.
  * @param {Blob} blob
@@ -29,9 +32,12 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
   const gap = PHRASE_GAP_SEC;
 
   const ctx = new AudioContext();
+  let base;
+  const phraseBuffers = [];
+
   try {
     opts.onProgress?.(0.05);
-    const base = await decodeBlob(baseBlob, ctx);
+    base = await decodeBlob(baseBlob, ctx);
     opts.onProgress?.(0.2);
 
     if (base.duration > MAX_BASE_DURATION_SEC) {
@@ -40,14 +46,20 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
       );
     }
 
-    const phraseBuffers = [];
     for (let i = 0; i < clips.length; i++) {
-      const raw = Uint8Array.from(atob(clips[i].audioBase64), (c) => c.charCodeAt(0));
-      const buf = await ctx.decodeAudioData(raw.buffer.slice(0));
+      const b64 = clips[i].audioBase64;
+      const binary = atob(b64);
+      const raw = new Uint8Array(binary.length);
+      for (let j = 0; j < binary.length; j++) raw[j] = binary.charCodeAt(j);
+      const buf = await ctx.decodeAudioData(raw.buffer);
       phraseBuffers.push(buf);
       opts.onProgress?.(0.2 + (0.25 * (i + 1)) / clips.length);
     }
+  } finally {
+    await ctx.close().catch(() => {});
+  }
 
+  try {
     const channels = base.numberOfChannels;
     const sampleRate = base.sampleRate;
     const length = base.length;
@@ -66,7 +78,7 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
     voiceBus.gain.value = voiceGain;
     voiceBus.connect(master);
 
-    let time = 0;
+    let time = VOICE_START_DELAY_SEC;
     let idx = 0;
     let safety = 0;
     const maxIterations = 5000;
@@ -78,10 +90,11 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
 
       const src = offline.createBufferSource();
       src.buffer = phrase;
+      src.playbackRate.value = 2;
       src.connect(voiceBus);
       src.start(time);
 
-      time += phrase.duration + gap;
+      time += phrase.duration / 2 + gap;
       idx += 1;
       safety += 1;
     }
@@ -98,8 +111,6 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
       duration: rendered.duration,
       sampleRate: rendered.sampleRate,
     };
-  } finally {
-    await ctx.close().catch(() => {});
   }
 }
 

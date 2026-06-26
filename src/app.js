@@ -54,11 +54,26 @@ import { mountThemeToggle } from './theme.js';
 import { initModal, showConfirm, showMenu, showPrompt } from './modal.js';
 import { QUEUE_VISIBLE } from './queue.js';
 import {
+  applyCreateDraft,
+  applyImportDraft,
+  clearCreateDraft,
+  clearImportDraft,
+  collectCreateDraft,
+  collectImportDraft,
+  persistResumeView,
+  readCreateDraft,
+  readImportDraft,
+  readResumeView,
+  writeCreateDraft,
+  writeImportDraft,
+} from './form-drafts.js';
+import {
   clearTagInput,
   dismissAllTagInputs,
   getTagInputTags,
   mountTagInput,
   recordTagUsage,
+  setTagInputTags,
 } from './tag-input.js';
 import { $, $$, escapeHtml, formatDuration, formatTimer, plural, tagToneClass } from './utils.js';
 
@@ -72,6 +87,9 @@ let playerSheetOpen = false;
 let queuePanelOpen = false;
 let headerSearchOpen = false;
 let playlistEditMode = false;
+
+let createDraftTimer = 0;
+let importDraftTimer = 0;
 
 const SLEEP_TIMER_OPTIONS = [
   { id: '0', label: 'Minuteur désactivé' },
@@ -130,16 +148,27 @@ function syncSleepTimerButton(minutes, remainingMs = 0) {
 export async function initApp() {
   await ensureCloudSessionAuto();
   onCloudAuthChange(() => {
-    refreshData().then(render).catch(() => {});
+    refreshData()
+      .then(() => {
+        if (activeView === 'create' || activeView === 'import') return;
+        render();
+      })
+      .catch(() => {});
   });
   mountShellIcons();
   mountThemeToggle();
   await loadSettings();
   await refreshData();
   await restoreLastSession();
+  const resumeView = readResumeView();
+  if (resumeView) {
+    activeView = resumeView;
+    $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === resumeView));
+  }
   initModal();
   bindShellEvents();
   bindGlobalDismiss();
+  bindFormDraftPersistence();
   render();
   subscribe(onPlayerState);
   registerServiceWorker();
@@ -337,6 +366,7 @@ function openPlayerSheet(open) {
 
 function setView(view, opts = {}) {
   activeView = view;
+  persistResumeView(view);
   if (opts.playlistId) selectedPlaylistId = opts.playlistId;
   if (view !== 'playlist-detail') playlistEditMode = false;
   const keepsSearch = opts.keepSearch || view === 'home' || view === 'library';
@@ -1359,8 +1389,57 @@ function renderCreate() {
     </div>`;
 }
 
+function scheduleCreateDraftSave() {
+  clearTimeout(createDraftTimer);
+  createDraftTimer = setTimeout(saveCreateDraftNow, 250);
+}
+
+function saveCreateDraftNow() {
+  writeCreateDraft(
+    collectCreateDraft(() => getTagInputTags('#create-tags-root')),
+  );
+}
+
+function restoreCreateDraft() {
+  applyCreateDraft(readCreateDraft(), (tags) => setTagInputTags('#create-tags-root', tags));
+}
+
+function scheduleImportDraftSave() {
+  clearTimeout(importDraftTimer);
+  importDraftTimer = setTimeout(saveImportDraftNow, 250);
+}
+
+function saveImportDraftNow() {
+  writeImportDraft(
+    collectImportDraft(() => getTagInputTags('#import-tags-root')),
+  );
+}
+
+function restoreImportDraft() {
+  applyImportDraft(readImportDraft(), (tags) => setTagInputTags('#import-tags-root', tags));
+}
+
+function bindFormDraftPersistence() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    if (activeView === 'create') saveCreateDraftNow();
+    else if (activeView === 'import') saveImportDraftNow();
+  });
+  window.addEventListener('pagehide', () => {
+    if (activeView === 'create') saveCreateDraftNow();
+    else if (activeView === 'import') saveImportDraftNow();
+  });
+}
+
 function bindCreateEvents() {
-  mountTagInput('#create-tags-root', { getAllTags: allTags });
+  mountTagInput('#create-tags-root', {
+    getAllTags: allTags,
+    onChange: scheduleCreateDraftSave,
+  });
+  restoreCreateDraft();
+  $('#create-youtube-url')?.addEventListener('input', scheduleCreateDraftSave);
+  $('#create-title')?.addEventListener('input', scheduleCreateDraftSave);
+  $('#create-affirmations')?.addEventListener('input', scheduleCreateDraftSave);
   $('#create-form')?.addEventListener('submit', handleCreate);
 }
 
@@ -1443,6 +1522,7 @@ async function handleCreate(e) {
 
     if (tags.length) recordTagUsage(tags);
     await refreshData();
+    clearCreateDraft();
     if (urlInput) urlInput.value = '';
     if (titleInput) titleInput.value = '';
     if (textInput) textInput.value = '';
@@ -1498,7 +1578,12 @@ function renderImport() {
 }
 
 function bindImportEvents() {
-  mountTagInput('#import-tags-root', { getAllTags: allTags });
+  mountTagInput('#import-tags-root', {
+    getAllTags: allTags,
+    onChange: scheduleImportDraftSave,
+  });
+  restoreImportDraft();
+  $('#youtube-url')?.addEventListener('input', scheduleImportDraftSave);
   $('#import-form')?.addEventListener('submit', handleImport);
 }
 
@@ -1553,6 +1638,7 @@ async function handleImport(e) {
 
     recordTagUsage(tags);
     await refreshData();
+    clearImportDraft();
     input.value = '';
     clearTagInput('#import-tags-root');
     $('#import-progress-wrap')?.setAttribute('hidden', '');

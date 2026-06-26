@@ -3,19 +3,45 @@ import { readJson, sendJson } from '../lib/http.mjs';
 
 const VOICE = 'fr-FR-DeniseNeural';
 const MAX_PHRASE_LEN = 220;
+const PHRASE_TIMEOUT_MS = 15_000;
+const PARALLEL_LIMIT = 4;
 
 function streamToBuffer(audioStream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     audioStream.on('data', (chunk) => chunks.push(chunk));
-    audioStream.on('close', () => resolve(Buffer.concat(chunks)));
+    audioStream.on('end', () => resolve(Buffer.concat(chunks)));
     audioStream.on('error', reject);
   });
 }
 
-async function synthesizePhrase(tts, text) {
+async function synthesizePhraseWithTimeout(text) {
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Timeout TTS pour : ${text.slice(0, 40)}`)), PHRASE_TIMEOUT_MS),
+  );
+
   const { audioStream } = tts.toStream(text, { rate: 0.92, pitch: '-2Hz', volume: 100 });
-  return streamToBuffer(audioStream);
+  const buffer = await Promise.race([streamToBuffer(audioStream), timeout]);
+  return buffer;
+}
+
+async function synthesizeInParallel(phrases) {
+  const results = new Array(phrases.length);
+  let i = 0;
+
+  async function worker() {
+    while (i < phrases.length) {
+      const idx = i++;
+      results[idx] = await synthesizePhraseWithTimeout(phrases[idx]);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(PARALLEL_LIMIT, phrases.length) }, worker);
+  await Promise.all(workers);
+  return results;
 }
 
 export async function handleTtsBatch(req, res) {
@@ -35,18 +61,13 @@ export async function handleTtsBatch(req, res) {
       return sendJson(res, { error: 'Ajoute au moins une affirmation (une ligne).' }, 400);
     }
 
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const buffers = await synthesizeInParallel(phrases);
 
-    const clips = [];
-    for (const text of phrases) {
-      const buffer = await synthesizePhrase(tts, text);
-      clips.push({
-        text,
-        mimeType: 'audio/mpeg',
-        audioBase64: buffer.toString('base64'),
-      });
-    }
+    const clips = phrases.map((text, i) => ({
+      text,
+      mimeType: 'audio/mpeg',
+      audioBase64: buffers[i].toString('base64'),
+    }));
 
     return sendJson(res, { clips, voice: VOICE });
   } catch (err) {

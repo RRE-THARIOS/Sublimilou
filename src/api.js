@@ -170,11 +170,24 @@ export async function downloadAudio(metaOrToken, { onProgress } = {}) {
 }
 
 export async function synthesizeAffirmations(phrases) {
-  const res = await fetch(`${API_BASE}/tts-batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phrases }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/tts-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phrases }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('Synthèse vocale trop longue. Réessaie avec moins de phrases.');
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Synthèse vocale impossible');
   return data;
