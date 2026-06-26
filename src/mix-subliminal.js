@@ -59,59 +59,57 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
     await ctx.close().catch(() => {});
   }
 
-  try {
-    const channels = base.numberOfChannels;
-    const sampleRate = base.sampleRate;
-    const length = base.length;
+  const channels = base.numberOfChannels;
+  const sampleRate = base.sampleRate;
+  const length = base.length;
 
-    const offline = new OfflineAudioContext(channels, length, sampleRate);
-    const master = offline.createGain();
-    master.gain.value = 1;
-    master.connect(offline.destination);
+  const offline = new OfflineAudioContext(channels, length, sampleRate);
+  const master = offline.createGain();
+  master.gain.value = 1;
+  master.connect(offline.destination);
 
-    const baseSrc = offline.createBufferSource();
-    baseSrc.buffer = base;
-    baseSrc.connect(master);
-    baseSrc.start(0);
+  const baseSrc = offline.createBufferSource();
+  baseSrc.buffer = base;
+  baseSrc.connect(master);
+  baseSrc.start(0);
 
-    const voiceBus = offline.createGain();
-    voiceBus.gain.value = voiceGain;
-    voiceBus.connect(master);
+  const voiceBus = offline.createGain();
+  voiceBus.gain.value = voiceGain;
+  voiceBus.connect(master);
 
-    let time = VOICE_START_DELAY_SEC;
-    let idx = 0;
-    let safety = 0;
-    const maxIterations = 5000;
+  let time = VOICE_START_DELAY_SEC;
+  let idx = 0;
+  let safety = 0;
+  const maxIterations = 5000;
 
-    while (time < base.duration && safety < maxIterations) {
-      const phrase = phraseBuffers[idx % phraseBuffers.length];
-      if (!phrase) break;
-      if (time + 0.05 >= base.duration) break;
+  while (time < base.duration && safety < maxIterations) {
+    const phrase = phraseBuffers[idx % phraseBuffers.length];
+    if (!phrase) break;
+    if (time + 0.05 >= base.duration) break;
 
-      const src = offline.createBufferSource();
-      src.buffer = phrase;
-      src.playbackRate.value = 2;
-      src.connect(voiceBus);
-      src.start(time);
+    const src = offline.createBufferSource();
+    src.buffer = phrase;
+    src.playbackRate.value = 2;
+    src.connect(voiceBus);
+    src.start(time);
 
-      time += phrase.duration / 2 + gap;
-      idx += 1;
-      safety += 1;
-    }
-
-    opts.onProgress?.(0.55);
-    const rendered = await offline.startRendering();
-    opts.onProgress?.(0.85);
-
-    const wavBlob = audioBufferToWavBlob(rendered);
-    opts.onProgress?.(1);
-
-    return {
-      blob: wavBlob,
-      duration: rendered.duration,
-      sampleRate: rendered.sampleRate,
-    };
+    time += phrase.duration / 2 + gap;
+    idx += 1;
+    safety += 1;
   }
+
+  opts.onProgress?.(0.55);
+  const rendered = await offline.startRendering();
+  opts.onProgress?.(0.85);
+
+  const wavBlob = audioBufferToWavBlob(rendered);
+  opts.onProgress?.(1);
+
+  return {
+    blob: wavBlob,
+    duration: rendered.duration,
+    sampleRate: rendered.sampleRate,
+  };
 }
 
 /** Export WAV mono 16-bit (compatible lecture partout). */
