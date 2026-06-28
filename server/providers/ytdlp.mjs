@@ -14,11 +14,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 let cachedBinary = null;
 
 export const AUDIO_FORMATS = [
-  'best/b',
   'bestaudio/best',
-  'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
-  'ba/b',
-  'b',
+  'best/b',
 ];
 
 /** Node est déjà dans l’image Docker — requis pour les défis YouTube (EJS). */
@@ -134,10 +131,14 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
     const binary = await getYtdlpBinary();
     const cookies = await cookieArgs();
     const strategies = await getClientArgSets();
+    const botBlockedKeys = new Set();
+    const BOT_BLOCK_LIMIT = 3;
 
     for (const format of AUDIO_FORMATS) {
       for (const strategy of strategies) {
         const extra = strategy.args ?? strategy;
+        const clientKey = JSON.stringify(extra);
+        if (botBlockedKeys.has(clientKey)) continue;
         const usedCookies = (strategy.useCookies ?? true) ? cookies : [];
         try {
           const fmt = await runOnce(binary, normalizedUrl, format, extra, usedCookies);
@@ -157,7 +158,9 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
         } catch (inner) {
           const msg = String(inner.stderr || inner.message || inner);
           if (/sign in to confirm|not a bot/i.test(msg)) {
-            continue; // Essaie la stratégie suivante
+            botBlockedKeys.add(clientKey);
+            if (botBlockedKeys.size >= BOT_BLOCK_LIMIT) return { botBlocked: true };
+            continue;
           }
           if (/video unavailable|private video|this video is not available|has been removed/i.test(msg)) {
             return { unavailable: true };
