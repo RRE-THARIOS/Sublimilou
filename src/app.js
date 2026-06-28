@@ -529,12 +529,12 @@ async function onPlayerState(state) {
   const enriched = await enrichState({ ...state });
   updateMiniPlayer(enriched);
   updateSheetPlayer(enriched);
-  syncNowPlayingRows(enriched.trackId);
+  syncNowPlayingRows(enriched.trackId, enriched.playing);
   if (playerSheetOpen && queuePanelOpen) renderQueueList(enriched);
 }
 
 /** Met à jour l’indicateur « en lecture » (barres EQ) dans les listes sans tout re-rendre */
-function syncNowPlayingRows(trackId) {
+function syncNowPlayingRows(trackId, playing) {
   const eqHtml = '<span class="eq-bars"><i></i><i></i><i></i></span>';
   const playHtml = `<span class="ui-icon">${iconPlay}</span>`;
 
@@ -547,9 +547,10 @@ function syncNowPlayingRows(trackId) {
     const btn = row.querySelector('.row-play');
     if (!btn) return;
 
-    const hasEq = btn.querySelector('.eq-bars');
-    if (active && !hasEq) btn.innerHTML = eqHtml;
-    else if (!active && hasEq) btn.innerHTML = playHtml;
+    const shouldShowEq = active && playing;
+    const hasEq = Boolean(btn.querySelector('.eq-bars'));
+    if (shouldShowEq && !hasEq) btn.innerHTML = eqHtml;
+    else if (!shouldShowEq && hasEq) btn.innerHTML = playHtml;
   });
 }
 
