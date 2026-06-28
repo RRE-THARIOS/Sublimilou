@@ -1,6 +1,6 @@
 # https://fly.io/docs/reference/configuration/
 app = 'sublimilou'
-primary_region = 'ams'
+primary_region = 'cdg'
 
 [build]
 
