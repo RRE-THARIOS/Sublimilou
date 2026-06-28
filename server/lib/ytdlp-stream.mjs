@@ -63,6 +63,8 @@ function attemptPipe(binary, videoUrl, format, extra, cookies, res, mimeType) {
         '-',
         '--no-playlist',
         '--no-warnings',
+        '--socket-timeout',
+        '20',
         ...cookies,
         ...extra,
         videoUrl,
@@ -118,10 +120,14 @@ export async function pipeYtdlpAudio(res, videoUrl, mimeType = 'audio/mp4') {
   const cookies = await cookieArgs();
   const strategies = await getClientArgSets();
   let lastErr = 'yt-dlp pipe failed';
+  const botBlockedKeys = new Set();
+  const BOT_BLOCK_LIMIT = 3;
 
   for (const format of AUDIO_FORMATS) {
     for (const strategy of strategies) {
       const extra = strategy.args ?? strategy;
+      const clientKey = JSON.stringify(extra);
+      if (botBlockedKeys.has(clientKey)) continue;
       const usedCookies = (strategy.useCookies ?? true) ? cookies : [];
       try {
         await attemptPipe(binary, videoUrl, format, extra, usedCookies, res, mimeType);
@@ -129,6 +135,13 @@ export async function pipeYtdlpAudio(res, videoUrl, mimeType = 'audio/mp4') {
       } catch (err) {
         lastErr = String(err.message || err);
         if (res.headersSent) throw err;
+        if (/sign in to confirm|not a bot/i.test(lastErr)) {
+          botBlockedKeys.add(clientKey);
+          if (botBlockedKeys.size >= BOT_BLOCK_LIMIT) {
+            throw new Error('YouTube bloque le téléchargement depuis ce serveur.');
+          }
+          continue;
+        }
       }
     }
   }

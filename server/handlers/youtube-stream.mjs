@@ -135,7 +135,21 @@ export async function handleYoutubeStream(req, res, url) {
       return sendText(res, 'Flux indisponible', 502);
     }
 
+    // Pour les sources yt-dlp, on répond immédiatement à la sonde Range
+    // avec X-Sublimilou-Mode: ytdlp-pipe pour que le client passe directement
+    // en mode pipe — évite un 2ème appel yt-dlp juste pour obtenir la taille.
     if (range === 'bytes=0-0') {
+      if (data.source === 'ytdlp') {
+        res.writeHead(200, {
+          'Content-Type': mimeType,
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers':
+            'Content-Length, Content-Range, Accept-Ranges, X-Sublimilou-Mode',
+          'X-Sublimilou-Mode': 'ytdlp-pipe',
+        });
+        res.end();
+        return;
+      }
       await respondYtdlpRangeProbe(res, videoUrl, mimeType);
       return;
     }
