@@ -1,6 +1,6 @@
 import { synthesizeAffirmations } from './api.js';
 import { mixSubliminal, DEFAULT_VOICE_GAIN, MAX_BASE_DURATION_SEC } from './mix-subliminal.js';
-import { BUNDLED_AUDIOS } from './bundled-audios.js';
+import { BUNDLED_AUDIOS, generateAudioThumbnail } from './bundled-audios.js';
 import {
   ensureCloudSessionAuto,
   onCloudAuthChange,
@@ -1328,12 +1328,18 @@ function parseAffirmationLines(text) {
 }
 
 function renderCreate() {
-  const audioOptions = BUNDLED_AUDIOS.map((a) => `
+  const audioOptions = BUNDLED_AUDIOS.map((a) => {
+    const thumb = generateAudioThumbnail(a);
+    return `
     <label class="audio-choice ${BUNDLED_AUDIOS.length === 1 ? 'selected' : ''}" data-audio-id="${a.id}">
       <input type="radio" name="create-audio" value="${a.id}" ${BUNDLED_AUDIOS.length === 1 ? 'checked' : ''} required />
-      <span class="audio-choice-title">${escapeHtml(a.title)}</span>
-      <span class="audio-choice-desc">${escapeHtml(a.description)}</span>
-    </label>`).join('');
+      <img class="audio-choice-thumb" src="${thumb}" alt="" />
+      <div class="audio-choice-info">
+        <span class="audio-choice-title">${escapeHtml(a.title)}</span>
+        <span class="audio-choice-desc">${escapeHtml(a.description)}</span>
+      </div>
+    </label>`;
+  }).join('');
 
   return `
     <div class="page page-create">
@@ -1511,7 +1517,7 @@ async function handleCreate(e) {
       id: crypto.randomUUID(),
       title,
       duration: duration || audioMeta.duration,
-      thumbnail: null,
+      thumbnail: generateAudioThumbnail(audioMeta),
       tags,
       affirmations: phrases,
       source: 'create',
