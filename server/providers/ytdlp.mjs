@@ -26,32 +26,29 @@ export function ytdlpBaseArgs() {
   return ['--js-runtimes', 'node'];
 }
 
-const CLIENT_ARG_SETS_NO_COOKIES = [
-  ['--extractor-args', 'youtube:player_client=tv_embedded'],
-  ['--extractor-args', 'youtube:player_client=ios'],
-  ['--extractor-args', 'youtube:player_client=android,web'],
-  ['--extractor-args', 'youtube:player_client=mweb'],
-  [],
-];
-
-/** Avec cookies : tv_embedded et ios en priorité car moins bloqués sur IP serveur. */
-const CLIENT_ARG_SETS_WITH_COOKIES = [
-  ['--extractor-args', 'youtube:player_client=tv_embedded'],
-  ['--extractor-args', 'youtube:player_client=ios'],
-  ['--extractor-args', 'youtube:player_client=web'],
-  ['--extractor-args', 'youtube:player_client=mweb'],
+/**
+ * Stratégies ordonnées par probabilité de succès sur IP serveur.
+ * tv_embedded et ios fonctionnent SANS cookies — avec cookies YouTube
+ * les traite comme un navigateur et applique sa détection bot.
+ * useCookies=true seulement pour web/mweb qui en ont besoin.
+ */
+const CLIENT_STRATEGIES = [
+  { args: ['--extractor-args', 'youtube:player_client=tv_embedded'], useCookies: false },
+  { args: ['--extractor-args', 'youtube:player_client=ios'], useCookies: false },
+  { args: ['--extractor-args', 'youtube:player_client=tv_embedded'], useCookies: true },
+  { args: ['--extractor-args', 'youtube:player_client=ios'], useCookies: true },
+  { args: ['--extractor-args', 'youtube:player_client=android,web'], useCookies: false },
+  { args: ['--extractor-args', 'youtube:player_client=web'], useCookies: true },
+  { args: ['--extractor-args', 'youtube:player_client=mweb'], useCookies: true },
+  { args: [], useCookies: false },
 ];
 
 export async function getClientArgSets() {
-  const cookiesPath = initYtdlpCookies() || process.env.YTDLP_COOKIES_PATH;
-  if (cookiesPath && fs.existsSync(cookiesPath)) {
-    return CLIENT_ARG_SETS_WITH_COOKIES;
-  }
-  return CLIENT_ARG_SETS_NO_COOKIES;
+  return CLIENT_STRATEGIES;
 }
 
 /** @deprecated utiliser getClientArgSets() */
-export const CLIENT_ARG_SETS = CLIENT_ARG_SETS_NO_COOKIES;
+export const CLIENT_ARG_SETS = CLIENT_STRATEGIES.map((s) => s.args);
 
 async function fileExists(p) {
   try {
@@ -108,7 +105,7 @@ export async function cookieArgs() {
   }
 }
 
-async function runOnce(binary, url, format, extraArgs) {
+async function runOnce(binary, url, format, extraArgs, cookies = []) {
   const args = [
     ...ytdlpBaseArgs(),
     '-f',
@@ -118,7 +115,7 @@ async function runOnce(binary, url, format, extraArgs) {
     '--no-warnings',
     '--socket-timeout',
     '20',
-    ...(await cookieArgs()),
+    ...cookies,
     ...extraArgs,
     url,
   ];
@@ -135,12 +132,15 @@ async function runOnce(binary, url, format, extraArgs) {
 export async function resolveViaYtdlp(normalizedUrl, videoId) {
   try {
     const binary = await getYtdlpBinary();
+    const cookies = await cookieArgs();
+    const strategies = await getClientArgSets();
 
-    const clientSets = await getClientArgSets();
     for (const format of AUDIO_FORMATS) {
-      for (const extra of clientSets) {
+      for (const strategy of strategies) {
+        const extra = strategy.args ?? strategy;
+        const usedCookies = (strategy.useCookies ?? true) ? cookies : [];
         try {
-          const fmt = await runOnce(binary, normalizedUrl, format, extra);
+          const fmt = await runOnce(binary, normalizedUrl, format, extra, usedCookies);
           if (!fmt?.url) continue;
 
           return {
@@ -157,7 +157,7 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
         } catch (inner) {
           const msg = String(inner.stderr || inner.message || inner);
           if (/sign in to confirm|not a bot/i.test(msg)) {
-            return { botBlocked: true };
+            continue; // Essaie la stratégie suivante
           }
           if (/video unavailable|private video|this video is not available|has been removed/i.test(msg)) {
             return { unavailable: true };
@@ -166,7 +166,7 @@ export async function resolveViaYtdlp(normalizedUrl, videoId) {
         }
       }
     }
-    return null;
+    return { botBlocked: true };
   } catch (err) {
     const msg = String(err.stderr || err.message || err);
     console.error('ytdlp:', msg.slice(0, 400));

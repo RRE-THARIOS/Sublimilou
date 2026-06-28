@@ -32,12 +32,15 @@ async function jsonProbe(binary, videoUrl, format, extra) {
 
 export async function probeYtdlpByteSize(videoUrl) {
   const binary = await getYtdlpBinary();
-  const clientSets = await getClientArgSets();
+  const strategies = await getClientArgSets();
+  const cookies = await cookieArgs();
 
   for (const format of AUDIO_FORMATS) {
-    for (const extra of clientSets) {
+    for (const strategy of strategies) {
+      const extra = strategy.args ?? strategy;
+      const usedCookies = (strategy.useCookies ?? true) ? cookies : [];
       try {
-        const fmt = await jsonProbe(binary, videoUrl, format, extra);
+        const fmt = await jsonProbe(binary, videoUrl, format, [...usedCookies, ...extra]);
         const size = Number(fmt?.filesize || fmt?.filesize_approx || 0);
         if (size > 0) return size;
       } catch {
@@ -113,13 +116,15 @@ function attemptPipe(binary, videoUrl, format, extra, cookies, res, mimeType) {
 export async function pipeYtdlpAudio(res, videoUrl, mimeType = 'audio/mp4') {
   const binary = await getYtdlpBinary();
   const cookies = await cookieArgs();
-  const clientSets = await getClientArgSets();
+  const strategies = await getClientArgSets();
   let lastErr = 'yt-dlp pipe failed';
 
   for (const format of AUDIO_FORMATS) {
-    for (const extra of clientSets) {
+    for (const strategy of strategies) {
+      const extra = strategy.args ?? strategy;
+      const usedCookies = (strategy.useCookies ?? true) ? cookies : [];
       try {
-        await attemptPipe(binary, videoUrl, format, extra, cookies, res, mimeType);
+        await attemptPipe(binary, videoUrl, format, extra, usedCookies, res, mimeType);
         return;
       } catch (err) {
         lastErr = String(err.message || err);
