@@ -1,6 +1,7 @@
 /**
- * Génère un thumbnail SVG data URI pour un audio.
+ * Génère un thumbnail SVG data URI.
  * colors : [fond1, fond2, fond3, ondes, orbe]
+ * label  : texte court affiché en bas
  */
 export function generateAudioThumbnail({ colors, label }) {
   const [c1, c2, c3, cWave, cOrb] = colors;
@@ -44,6 +45,31 @@ export function generateAudioThumbnail({ colors, label }) {
   } catch {
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;
   }
+}
+
+const FALLBACK_PALETTES = [
+  ['#c4a0c8', '#e8a8b8', '#f5cbb0', 'rgba(255,240,230,0.85)', '#f8e0d0'],
+  ['#a0b8c8', '#b8a8d8', '#d8c0e8', 'rgba(240,235,255,0.85)', '#e8d8f8'],
+  ['#c8b0a0', '#d8c090', '#e8d8a8', 'rgba(255,248,225,0.85)', '#f5e8c0'],
+  ['#a8c0a8', '#b8d0c0', '#c8e0b8', 'rgba(235,248,235,0.85)', '#d8ecd8'],
+];
+
+/**
+ * Thumbnail pour n'importe quel track (stocké ou généré à la volée).
+ * Si track.thumbnail existe, on le retourne directement.
+ * Sinon on génère un SVG avec les initiales du titre.
+ */
+export function getTrackThumbnail(track) {
+  if (track?.thumbnail) return track.thumbnail;
+  const title = track?.title || '';
+  const initials = title
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0] || '')
+    .join('')
+    .toUpperCase() || '♪';
+  const palette = FALLBACK_PALETTES[(title.charCodeAt(0) || 0) % FALLBACK_PALETTES.length];
+  return generateAudioThumbnail({ colors: palette, label: initials });
 }
 
 /**

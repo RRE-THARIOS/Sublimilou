@@ -1,6 +1,6 @@
 import { synthesizeAffirmations } from './api.js';
 import { mixSubliminal, DEFAULT_VOICE_GAIN, MAX_BASE_DURATION_SEC } from './mix-subliminal.js';
-import { BUNDLED_AUDIOS, generateAudioThumbnail } from './bundled-audios.js';
+import { BUNDLED_AUDIOS, generateAudioThumbnail, getTrackThumbnail } from './bundled-audios.js';
 import {
   ensureCloudSessionAuto,
   onCloudAuthChange,
@@ -563,7 +563,7 @@ function updateMiniPlayer(state) {
   bar?.classList.remove('hidden');
   document.body.classList.add('has-player');
   bar?.classList.toggle('is-playing', state.playing);
-  $('#mini-thumb').src = state.track.thumbnail || '';
+  $('#mini-thumb').src = getTrackThumbnail(state.track);
   $('#mini-title').textContent = state.track.title;
   $('#mini-sub').textContent = state.contextLabel || 'En lecture';
 
@@ -578,7 +578,7 @@ function updateSheetPlayer(state) {
     tagsBlock?.setAttribute('hidden', '');
     return;
   }
-  $('#sheet-thumb').src = state.track.thumbnail || '';
+  $('#sheet-thumb').src = getTrackThumbnail(state.track);
   $('#sheet-title').textContent = state.track.title;
   $('#sheet-context').textContent = state.contextLabel || 'En lecture';
 
@@ -854,7 +854,7 @@ function renderHomeSearch() {
 function renderTrackTile(track) {
   return `
     <button type="button" class="tile" data-play="${track.id}">
-      <img src="${track.thumbnail || ''}" alt="" loading="lazy" />
+      <img src="${getTrackThumbnail(track)}" alt="" loading="lazy" />
       <span class="tile-title">${escapeHtml(track.title)}</span>
       <span class="tile-dur">${formatDuration(track.duration)}</span>
       ${renderTrackTags(track.tags, { max: 1, variant: 'tile' })}
@@ -864,7 +864,7 @@ function renderTrackTile(track) {
 function playlistCoverThumbs(pl, limit = 3) {
   return playlistTracks(pl)
     .slice(0, limit)
-    .map((t) => t.thumbnail)
+    .map((t) => getTrackThumbnail(t))
     .filter(Boolean);
 }
 
@@ -986,10 +986,7 @@ function renderLibrary() {
 }
 
 function renderThumb(track) {
-  if (track.thumbnail) {
-    return `<img class="row-thumb" src="${track.thumbnail}" alt="" loading="lazy" />`;
-  }
-  return `<div class="row-thumb row-thumb-placeholder" aria-hidden="true"></div>`;
+  return `<img class="row-thumb" src="${getTrackThumbnail(track)}" alt="" loading="lazy" />`;
 }
 
 /** Pastilles de tags discrètes (liste, lecteur, tuiles, file) */
