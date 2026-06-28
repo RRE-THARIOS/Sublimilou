@@ -1349,7 +1349,6 @@ function renderCreate() {
           <span class="create-panel-icon ui-icon">${iconCreate}</span>
           <div>
             <h2>Ton subliminal</h2>
-            <p class="hint">1 phrase par ligne · piste max ${MAX_BASE_DURATION_SEC / 60} min</p>
           </div>
         </div>
         <form id="create-form" class="create-form">
@@ -1370,21 +1369,17 @@ function renderCreate() {
             />
           </label>
           <label class="field field-affirmations">
-            <span class="field-label-row">
-              <span>Affirmations</span>
-              <span class="field-badge">1 ligne = 1 phrase</span>
-            </span>
+            <span>Affirmations</span>
             <div class="create-textarea-wrap">
               <textarea
                 id="create-affirmations"
                 class="create-textarea"
-                rows="10"
+                rows="8"
                 placeholder="Je suis calme et confiante&#10;Mon corps se transforme chaque jour&#10;Je mérite le meilleur"
                 required
                 spellcheck="true"
               ></textarea>
             </div>
-            <p class="field-hint">Répétées en boucle, voix imperceptible</p>
           </label>
           <div class="field field-tags">
             <span>Tags (optionnel)</span>
