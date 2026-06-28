@@ -643,9 +643,7 @@ function renderQueueList(state) {
   const renderItem = (id, { active = false, slot = 0, absIndex = 0, canUp = false, canDown = false } = {}) => {
     const t = tracks.find((x) => x.id === id);
     if (!t) return '';
-    const thumb = t.thumbnail
-      ? `<img class="qi-thumb" src="${escapeHtml(t.thumbnail)}" alt="" loading="lazy" />`
-      : `<span class="qi-thumb qi-thumb-ph"></span>`;
+    const thumb = `<img class="qi-thumb" src="${escapeHtml(getTrackThumbnail(t))}" alt="" loading="lazy" />`;
     const reorder = active
       ? ''
       : `<div class="queue-item-actions">

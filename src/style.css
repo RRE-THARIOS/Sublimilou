@@ -1487,7 +1487,7 @@ progress {
   border-radius: 0.9rem;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  background: var(--surface);
+  background: var(--bg-card);
 }
 
 .audio-choice input[type="radio"] {
@@ -1530,7 +1530,7 @@ progress {
 
 .audio-choice-desc {
   font-size: 0.75rem;
-  color: var(--text-2);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2912,6 +2912,16 @@ body.modal-open {
 }
 
 /* ── Responsive (iPhone 6 ≈ 375px, petits écrans) ── */
+/* Prévention du zoom iOS sur tous les inputs sur tous les iPhones */
+@media screen and (max-width: 430px) {
+  input,
+  select,
+  textarea,
+  .header-search-input {
+    font-size: 16px;
+  }
+}
+
 @media screen and (max-width: 390px) {
   :root {
     --touch-min: 44px;
@@ -3108,14 +3118,6 @@ body.modal-open {
     text-align: center;
   }
 
-  /* iOS : évite le zoom automatique au focus (surtout iPhone 6) */
-  input,
-  select,
-  textarea,
-  .header-search-input {
-    font-size: 16px;
-  }
-
   .card {
     padding: 1.1rem;
   }
@@ -3139,6 +3141,125 @@ body.modal-open {
     gap: 0.4rem;
   }
 }
+
+/* ══════════════════════════════════════════════
+   MODE SOMBRE
+   ══════════════════════════════════════════════ */
+[data-theme='dark'] {
+  --rose-poudre: #3d2d3e;
+  --beige-creme: #2a2030;
+  --blanc-casse: #221828;
+  --peche: #b87060;
+  --corail: #c47a72;
+  --prune: #e8daea;
+
+  --bg: #1a1620;
+  --bg-card: #221828;
+  --bg-elevated: #2d2232;
+  --bg-glass: rgba(26, 22, 32, 0.94);
+  --text: #ede4ee;
+  --text-muted: rgba(237, 228, 238, 0.52);
+  --accent: #b87060;
+  --accent-2: #c47a72;
+  --accent-deep: #e8b0a8;
+  --rose: #3d2d3e;
+  --border: rgba(237, 228, 238, 0.1);
+  --border-strong: rgba(237, 228, 238, 0.18);
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 4px 18px rgba(180, 100, 90, 0.28);
+}
+
+[data-theme='dark'] body {
+  background:
+    radial-gradient(ellipse 100% 70% at 50% -20%, rgba(80, 50, 80, 0.45), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 100% 30%, rgba(100, 60, 70, 0.22), transparent),
+    radial-gradient(ellipse 55% 45% at 0% 90%, rgba(60, 45, 70, 0.45), transparent),
+    var(--bg);
+}
+
+[data-theme='dark'] .tab-bar,
+[data-theme='dark'] .app-header {
+  background: var(--bg-glass);
+}
+
+[data-theme='dark'] .mini-player {
+  background: var(--bg-card);
+}
+
+[data-theme='dark'] .mini-player.is-playing {
+  background: var(--bg-elevated);
+}
+
+[data-theme='dark'] .sheet-panel {
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
+}
+
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder {
+  color: rgba(237, 228, 238, 0.3);
+}
+
+[data-theme='dark'] .create-textarea {
+  background: var(--bg-elevated);
+  border-color: rgba(180, 100, 90, 0.3);
+}
+
+[data-theme='dark'] .create-textarea-wrap {
+  background: linear-gradient(155deg, rgba(80, 50, 80, 0.5), rgba(60, 45, 70, 0.65));
+}
+
+[data-theme='dark'] .modal-card {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+[data-theme='dark'] .modal-list-item {
+  background: var(--bg);
+}
+
+[data-theme='dark'] .tag-suggest {
+  background: var(--bg-elevated);
+}
+
+[data-theme='dark'] .pl-cover {
+  background: linear-gradient(145deg, #3d2d3e, #b87060);
+}
+
+[data-theme='dark'] .audio-choice {
+  background: var(--bg-elevated);
+  border-color: rgba(237, 228, 238, 0.12);
+}
+
+[data-theme='dark'] .audio-choice.selected,
+[data-theme='dark'] .audio-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(180, 100, 90, 0.12);
+  box-shadow: 0 0 0 3px rgba(180, 100, 90, 0.18);
+}
+
+[data-theme='dark'] .splash-bg {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(80, 50, 80, 0.4), transparent 62%),
+    linear-gradient(180deg, #1a1620 0%, #221828 100%);
+}
+
+[data-theme='dark'] .splash-message {
+  color: var(--text);
+}
+
+[data-theme='dark'] .splash-message-accent {
+  color: var(--accent-deep);
+}
+
+/* ── Fin mode sombre ── */
 
 @media screen and (max-width: 320px) {
   :root {
