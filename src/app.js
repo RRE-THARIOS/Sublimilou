@@ -1,6 +1,6 @@
-import { resolveYoutube, downloadAudio, synthesizeAffirmations } from './api.js';
+import { synthesizeAffirmations } from './api.js';
 import { mixSubliminal, DEFAULT_VOICE_GAIN, MAX_BASE_DURATION_SEC } from './mix-subliminal.js';
-import { normalizeYoutubeUrl } from './youtube.js';
+import { BUNDLED_AUDIOS } from './bundled-audios.js';
 import {
   ensureCloudSessionAuto,
   onCloudAuthChange,
@@ -150,7 +150,7 @@ export async function initApp() {
   onCloudAuthChange(() => {
     refreshData()
       .then(() => {
-        if (activeView === 'create' || activeView === 'import') return;
+        if (activeView === 'create') return;
         render();
       })
       .catch(() => {});
@@ -782,15 +782,15 @@ function renderHome() {
             <span class="ha-icon ui-icon">${iconShuffle}</span>
             <span>Aléatoire</span>
           </button>
-          <button type="button" class="home-action" data-action="goto-import">
+          <button type="button" class="home-action" data-action="goto-create">
             <span class="ha-icon ui-icon">${iconPlus}</span>
-            <span>Ajouter</span>
+            <span>Créer</span>
           </button>
         </div>
       ` : `
         <section class="empty-hero card">
-          <p>Commence par ajouter ton premier subliminal depuis YouTube.</p>
-          <button type="button" class="btn primary full" data-action="goto-import">Ajouter un lien</button>
+          <p>Commence par créer ton premier subliminal.</p>
+          <button type="button" class="btn primary full" data-action="goto-create">Créer un subliminal</button>
         </section>
       `}
 
@@ -936,7 +936,8 @@ function bindHomeEvents() {
 
   $('[data-action="play-all"]')?.addEventListener('click', () => playAllTracks(false));
   $('[data-action="shuffle-all"]')?.addEventListener('click', () => playAllTracks(true));
-  $('[data-action="goto-import"]')?.addEventListener('click', () => setView('import'));
+  $('[data-action="goto-import"]')?.addEventListener('click', () => setView('create'));
+  $('[data-action="goto-create"]')?.addEventListener('click', () => setView('create'));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => setView(b.dataset.goto)));
   $$('[data-goto-create]').forEach((b) => b.addEventListener('click', () => setView('create')));
   $$('[data-play]').forEach((b) =>
@@ -980,7 +981,7 @@ function renderLibrary() {
         <button type="button" class="btn sm" data-lib-play>Tout lire</button>
         <button type="button" class="btn sm ghost" data-lib-shuffle>Aléatoire</button>
       </div>
-      <div class="track-list">${list.length ? list.map(renderTrackRow).join('') : '<p class="empty-state">Aucun titre. <button type="button" class="text-btn" data-goto-import>Ajouter</button></p>'}</div>
+      <div class="track-list">${list.length ? list.map(renderTrackRow).join('') : '<p class="empty-state">Aucun titre. <button type="button" class="text-btn" data-goto-create>Créer</button></p>'}</div>
     </div>`;
 }
 
@@ -1040,7 +1041,7 @@ function bindLibraryEvents() {
   );
   $('[data-lib-play]')?.addEventListener('click', () => playAllTracks(false));
   $('[data-lib-shuffle]')?.addEventListener('click', () => playAllTracks(true));
-  $('[data-goto-import]')?.addEventListener('click', () => setView('import'));
+  $('[data-goto-create]')?.addEventListener('click', () => setView('create'));
   bindTrackRowEvents();
 }
 
@@ -1327,12 +1328,19 @@ function parseAffirmationLines(text) {
 }
 
 function renderCreate() {
+  const audioOptions = BUNDLED_AUDIOS.map((a) => `
+    <label class="audio-choice ${BUNDLED_AUDIOS.length === 1 ? 'selected' : ''}" data-audio-id="${a.id}">
+      <input type="radio" name="create-audio" value="${a.id}" ${BUNDLED_AUDIOS.length === 1 ? 'checked' : ''} required />
+      <span class="audio-choice-title">${escapeHtml(a.title)}</span>
+      <span class="audio-choice-desc">${escapeHtml(a.description)}</span>
+    </label>`).join('');
+
   return `
     <div class="page page-create">
       <header class="page-hero">
         <p class="page-eyebrow">Studio</p>
         <h1 class="page-hero-title">Créer</h1>
-        <p class="page-hero-sub">Musique YouTube + affirmations très basses en boucle</p>
+        <p class="page-hero-sub">Choisis une musique et ajoute tes affirmations</p>
       </header>
 
       <section class="create-panel card">
@@ -1344,17 +1352,19 @@ function renderCreate() {
           </div>
         </div>
         <form id="create-form" class="create-form">
-          <label class="field">
-            <span>Lien YouTube (fond musical)</span>
-            <input id="create-youtube-url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=…" required autocomplete="off" />
-          </label>
+          <div class="field">
+            <span>Fond musical</span>
+            <div class="audio-choices" id="create-audio-choices">
+              ${audioOptions}
+            </div>
+          </div>
           <label class="field">
             <span>Nom (optionnel)</span>
             <input
               id="create-title"
               type="text"
               maxlength="120"
-              placeholder="Laisse vide pour garder le titre de la vidéo"
+              placeholder="Laisse vide pour garder le titre de la musique"
               autocomplete="off"
             />
           </label>
@@ -1423,11 +1433,9 @@ function bindFormDraftPersistence() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'hidden') return;
     if (activeView === 'create') saveCreateDraftNow();
-    else if (activeView === 'import') saveImportDraftNow();
   });
   window.addEventListener('pagehide', () => {
     if (activeView === 'create') saveCreateDraftNow();
-    else if (activeView === 'import') saveImportDraftNow();
   });
 }
 
@@ -1437,18 +1445,20 @@ function bindCreateEvents() {
     onChange: scheduleCreateDraftSave,
   });
   restoreCreateDraft();
-  $('#create-youtube-url')?.addEventListener('input', scheduleCreateDraftSave);
   $('#create-title')?.addEventListener('input', scheduleCreateDraftSave);
   $('#create-affirmations')?.addEventListener('input', scheduleCreateDraftSave);
+  $$('input[name="create-audio"]')?.forEach((r) =>
+    r.addEventListener('change', scheduleCreateDraftSave),
+  );
   $('#create-form')?.addEventListener('submit', handleCreate);
 }
 
 async function handleCreate(e) {
   e.preventDefault();
-  const urlInput = $('#create-youtube-url');
   const titleInput = $('#create-title');
   const textInput = $('#create-affirmations');
-  let url = urlInput?.value.trim() || '';
+  const selectedAudioId = $('input[name="create-audio"]:checked')?.value;
+
   const customTitle = titleInput?.value.trim() || '';
   const phrases = parseAffirmationLines(textInput?.value || '');
 
@@ -1457,12 +1467,11 @@ async function handleCreate(e) {
     return;
   }
 
-  const normalized = normalizeYoutubeUrl(url);
-  if (!normalized) {
-    $('#create-status').textContent = 'Lien invalide — vérifie www.youtube.com';
+  const audioMeta = BUNDLED_AUDIOS.find((a) => a.id === selectedAudioId);
+  if (!audioMeta) {
+    $('#create-status').textContent = 'Choisis une musique de fond.';
     return;
   }
-  if (normalized !== url && urlInput) urlInput.value = normalized;
 
   const btn = $('#create-submit');
   const progress = $('#create-progress');
@@ -1479,38 +1488,30 @@ async function handleCreate(e) {
   if (progress) progress.hidden = false;
 
   try {
-    setProgress(2, 'Analyse du lien…');
-    const meta = await resolveYoutube(normalized);
+    setProgress(5, `Chargement de la musique…`);
+    const res = await fetch(audioMeta.file);
+    if (!res.ok) throw new Error('Impossible de charger la musique.');
+    const musicBlob = new Blob([await res.arrayBuffer()], { type: audioMeta.mimeType });
+    setProgress(20, 'Musique chargée.');
 
-    if (meta.duration && meta.duration > MAX_BASE_DURATION_SEC) {
-      throw new Error(`Vidéo trop longue (max ${MAX_BASE_DURATION_SEC / 60} min). Choisis un morceau plus court.`);
-    }
-
-    setProgress(8, `Téléchargement · ${meta.title}`);
-    const musicBlob = await downloadAudio(meta, {
-      onProgress: (p) => setProgress(8 + Math.round(p * 42), `Téléchargement… ${Math.round(p * 100)}%`),
-    });
-
-    setProgress(52, 'Synthèse des voix…');
+    setProgress(22, 'Synthèse des voix…');
     const { clips } = await synthesizeAffirmations(phrases);
 
-    setProgress(62, 'Mixage (musique + affirmations)…');
+    setProgress(52, 'Mixage (musique + affirmations)…');
     const { blob, duration } = await mixSubliminal(musicBlob, clips, {
       voiceGain: DEFAULT_VOICE_GAIN,
-      onProgress: (p) => setProgress(62 + Math.round(p * 33), `Mixage… ${Math.round(p * 100)}%`),
+      onProgress: (p) => setProgress(52 + Math.round(p * 44), `Mixage… ${Math.round(p * 100)}%`),
     });
 
     setProgress(98, 'Enregistrement…');
-    const title = customTitle || meta.title || 'Subliminal';
+    const title = customTitle || audioMeta.title || 'Subliminal';
     const tags = getTagInputTags('#create-tags-root');
 
     await saveTrack({
       id: crypto.randomUUID(),
       title,
-      duration: duration || meta.duration,
-      thumbnail: meta.thumbnail,
-      youtubeUrl: normalized,
-      videoId: meta.videoId,
+      duration: duration || audioMeta.duration,
+      thumbnail: null,
       tags,
       affirmations: phrases,
       source: 'create',
@@ -1523,7 +1524,6 @@ async function handleCreate(e) {
     if (tags.length) recordTagUsage(tags);
     await refreshData();
     clearCreateDraft();
-    if (urlInput) urlInput.value = '';
     if (titleInput) titleInput.value = '';
     if (textInput) textInput.value = '';
     clearTagInput('#create-tags-root');

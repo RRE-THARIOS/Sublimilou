@@ -1470,6 +1470,49 @@ progress {
   gap: 0.05rem;
 }
 
+.audio-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.audio-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid rgba(107, 95, 110, 0.15);
+  border-radius: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--surface);
+}
+
+.audio-choice input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.audio-choice.selected,
+.audio-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb, 196, 130, 100), 0.07);
+}
+
+.audio-choice-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.audio-choice-desc {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+
 .create-form .field {
   margin-bottom: 0.9rem;
 }
