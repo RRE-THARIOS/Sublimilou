@@ -1,4 +1,4 @@
-/** Même logique que le serveur — corrige ww.youtube, liens sans https, etc. */
+/** Même logique que le serveur — corrige ww.youtube, liens sans https, m.youtube → www, nettoie les paramètres playlist. */
 export function normalizeYoutubeUrl(raw) {
   let s = String(raw || '').trim();
   if (!s) return null;
@@ -10,7 +10,24 @@ export function normalizeYoutubeUrl(raw) {
     if (!['youtube.com', 'youtu.be', 'm.youtube.com', 'music.youtube.com'].includes(host)) {
       return null;
     }
-    return u.toString();
+    if (host === 'youtu.be') {
+      const id = u.pathname.slice(1).split('/')[0]?.slice(0, 11);
+      if (!id) return null;
+      return `https://www.youtube.com/watch?v=${id}`;
+    }
+    if (u.pathname.startsWith('/shorts/')) {
+      const id = u.pathname.split('/')[2]?.slice(0, 11);
+      if (!id) return null;
+      return `https://www.youtube.com/watch?v=${id}`;
+    }
+    if (u.pathname.startsWith('/live/')) {
+      const id = u.pathname.split('/')[2]?.slice(0, 11);
+      if (!id) return null;
+      return `https://www.youtube.com/watch?v=${id}`;
+    }
+    const id = u.searchParams.get('v')?.slice(0, 11);
+    if (!id) return null;
+    return `https://www.youtube.com/watch?v=${id}`;
   } catch {
     return null;
   }
