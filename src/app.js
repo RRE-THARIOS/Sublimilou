@@ -367,7 +367,11 @@ function openPlayerSheet(open) {
 function setView(view, opts = {}) {
   activeView = view;
   persistResumeView(view);
-  if (opts.playlistId) selectedPlaylistId = opts.playlistId;
+  if (view === 'playlist-detail') {
+    if (opts.playlistId) selectedPlaylistId = opts.playlistId;
+  } else {
+    selectedPlaylistId = null;
+  }
   if (view !== 'playlist-detail') playlistEditMode = false;
   const keepsSearch = opts.keepSearch || view === 'home' || view === 'library';
   if (!keepsSearch) {
