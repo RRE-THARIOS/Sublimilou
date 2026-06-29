@@ -19,6 +19,8 @@ let stateContextLabel = '';
 let mediaSessionReady = false;
 let lastPositionUpdate = 0;
 let wasPlayingOnHide = false;
+let endedInProgress = false; // garde-fou double-ended iOS
+let endedFallbackScheduled = false; // fallback iOS timeupdate → ended
 
 function setPlaybackAudioSession() {
   try {
@@ -48,9 +50,19 @@ function getAudio() {
 function onTimeUpdate() {
   emit();
   updatePositionStateThrottled();
+  // Fallback iOS : 'ended' ne se déclenche pas toujours (verrouillage, arrière-plan…)
+  const a = audio;
+  if (a && !a.paused && a.duration > 0 && !endedFallbackScheduled && !endedInProgress) {
+    if (a.currentTime >= a.duration - 0.35) {
+      endedFallbackScheduled = true;
+      setTimeout(() => { onEnded().catch(() => {}); }, 0);
+    }
+  }
 }
 
 function onAudioPlay() {
+  endedFallbackScheduled = false;
+  endedInProgress = false;
   setPlaybackAudioSession();
   emit();
 }
@@ -158,26 +170,33 @@ function updatePositionStateThrottled() {
 }
 
 async function onEnded() {
-  const a = getAudio();
-  if (repeatMode === 'loop' && currentTrackId) {
-    a.currentTime = 0;
-    await a.play();
-    return;
-  }
-  if (repeatMode === 'once' && currentTrackId) {
-    if (!repeatOnceLeft) {
-      repeatOnceLeft = true;
+  if (endedInProgress) return;
+  endedInProgress = true;
+  endedFallbackScheduled = false;
+  try {
+    const a = getAudio();
+    if (repeatMode === 'loop' && currentTrackId) {
       a.currentTime = 0;
       await a.play();
       return;
     }
-    repeatMode = 'off';
-    repeatOnceLeft = false;
-    loopEnabled = false;
-    await persistSession();
-    emit();
+    if (repeatMode === 'once' && currentTrackId) {
+      if (!repeatOnceLeft) {
+        repeatOnceLeft = true;
+        a.currentTime = 0;
+        await a.play();
+        return;
+      }
+      repeatMode = 'off';
+      repeatOnceLeft = false;
+      loopEnabled = false;
+      await persistSession();
+      emit();
+    }
+    await playNext(true);
+  } finally {
+    endedInProgress = false;
   }
-  await playNext(true);
 }
 
 function emit() {
@@ -429,12 +448,12 @@ async function playTrackAt(index, label = '') {
   const trackId = queue[queueIndex];
   const track = await getTrack(trackId);
   if (!track?.blob) {
+    // Track sans audio : on l'éjecte et on essaie le suivant
     queue.splice(index, 1);
-    if (queueSource.length) {
-      queueSource = queueSource.filter((id) => id !== trackId);
-      initQueue(Math.min(queueIndex, queueSource.length - 1));
-    }
-    emit();
+    queueSource = queueSource.filter((id) => id !== trackId);
+    if (!queueSource.length) { emit(); return; }
+    initQueue(Math.min(queueIndex, queueSource.length - 1));
+    await playTrackAt(queueIndex, label);
     return;
   }
 

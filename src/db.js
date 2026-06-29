@@ -233,28 +233,28 @@ async function serializeTrackForIdb(track) {
   return { ...rest, audio, mimeType: mimeType || 'audio/mpeg' };
 }
 
-/** Reconstruit un Blob pour la lecture (compat anciennes entrées). */
+/** Reconstruit un Blob pour la lecture (compat anciennes entrées + iOS IndexedDB). */
 export function hydrateTrack(stored) {
   if (!stored) return stored;
 
   const { audio, mimeType, blob, ...rest } = stored;
+  const mime = mimeType || 'audio/mpeg';
 
-  if (audio instanceof ArrayBuffer) {
-    return {
-      ...rest,
-      mimeType: mimeType || 'audio/mpeg',
-      blob: new Blob([audio], { type: mimeType || 'audio/mpeg' }),
-    };
+  // audio field : ArrayBuffer (ou objet désérialisé d'IDB sur iOS dont instanceof échoue)
+  if (audio != null) {
+    if (blob instanceof Blob) return stored; // déjà hydraté
+    try {
+      return { ...rest, mimeType: mime, blob: new Blob([audio], { type: mime }) };
+    } catch { /* fall through */ }
   }
 
   if (blob instanceof Blob) return stored;
 
-  if (blob instanceof ArrayBuffer) {
-    return {
-      ...rest,
-      mimeType: mimeType || 'audio/mpeg',
-      blob: new Blob([blob], { type: mimeType || 'audio/mpeg' }),
-    };
+  // blob stocké en ArrayBuffer ou objet ArrayBuffer-like iOS
+  if (blob != null) {
+    try {
+      return { ...rest, mimeType: mime, blob: new Blob([blob], { type: mime }) };
+    } catch { /* fall through */ }
   }
 
   return stored;
