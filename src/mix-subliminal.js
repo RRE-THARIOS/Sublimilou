@@ -7,6 +7,9 @@ export const DEFAULT_MUSIC_GAIN = 0.68;
 /** Volume des affirmations (0–1, à peine audibles) */
 export const DEFAULT_VOICE_GAIN = 0.08;
 
+/** Incrémenter quand le mix change, pour remixer les pistes existantes. */
+export const MIX_VERSION = 2;
+
 /** Pause entre deux phrases (secondes) */
 export const PHRASE_GAP_SEC = 0.75;
 

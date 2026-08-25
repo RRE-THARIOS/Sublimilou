@@ -1,6 +1,5 @@
-import { synthesizeAffirmations } from './api.js';
-import { mixSubliminal, DEFAULT_VOICE_GAIN, MAX_BASE_DURATION_SEC } from './mix-subliminal.js';
 import { BUNDLED_AUDIOS, generateAudioThumbnail, getTrackThumbnail } from './bundled-audios.js';
+import { buildSubliminalMix, MIX_VERSION, remasterOutdatedTracks, tracksNeedingRemaster } from './remaster.js';
 import {
   ensureCloudSessionAuto,
   onCloudAuthChange,
@@ -23,6 +22,7 @@ import {
   getState,
   loadSettings,
   restoreLastSession,
+  reloadCurrentTrackBlob,
   jumpToQueueIndex,
   playNext,
   playPrevious,
@@ -150,8 +150,8 @@ export async function initApp() {
   onCloudAuthChange(() => {
     refreshData()
       .then(() => {
-        if (activeView === 'create') return;
-        render();
+        if (activeView !== 'create') render();
+        remasterLibraryInBackground();
       })
       .catch(() => {});
   });
@@ -173,6 +173,7 @@ export async function initApp() {
   subscribe(onPlayerState);
   registerServiceWorker();
   requestPersistentStorage();
+  remasterLibraryInBackground();
 }
 
 async function refreshData() {
@@ -432,13 +433,43 @@ function updateSleepTimerLabel(minutes) {
   syncSleepTimerButton(minutes, getState().timerRemaining);
 }
 
-function toast(msg) {
+function toast(msg, ms = 2200) {
   const el = $('#toast');
   if (!el) return;
   el.textContent = msg;
   el.classList.remove('hidden');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add('hidden'), 2200);
+  toast._t = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+let remasterRunning = false;
+
+async function remasterLibraryInBackground() {
+  if (remasterRunning) return;
+  const due = tracksNeedingRemaster(tracks);
+  if (!due.length) return;
+
+  remasterRunning = true;
+  toast(`Mise à jour du mix (${due.length})…`, 8000);
+  try {
+    const result = await remasterOutdatedTracks(tracks, {
+      onProgress: ({ index, total }) => toast(`Mise à jour ${index}/${total}…`, 30000),
+    });
+
+    if (result.offline) return;
+    if (result.updated) {
+      await refreshData();
+      await reloadCurrentTrackBlob();
+      if (activeView !== 'create') render();
+      const ok =
+        result.updated === 1 ? 'Subliminal mis à jour' : `${result.updated} subliminaux mis à jour`;
+      toast(result.failed ? `${ok}, ${result.failed} en échec` : ok, 4000);
+      return;
+    }
+    if (result.failed) toast('Mise à jour du mix impossible pour le moment', 4000);
+  } finally {
+    remasterRunning = false;
+  }
 }
 
 function greeting() {
@@ -1489,29 +1520,14 @@ async function handleCreate(e) {
   if (progress) progress.hidden = false;
 
   try {
-    setProgress(5, `Chargement de la musique…`);
-    const res = await fetch(audioMeta.file);
-    if (!res.ok) throw new Error('Impossible de charger la musique.');
-    const musicBlob = new Blob([await res.arrayBuffer()], { type: audioMeta.mimeType });
-    setProgress(20, 'Musique chargée.');
-
-    setProgress(22, 'Synthèse des voix…');
-    const { clips } = await synthesizeAffirmations(phrases);
-
-    setProgress(52, 'Mixage (musique + affirmations)…');
-    const { blob, duration } = await mixSubliminal(musicBlob, clips, {
-      voiceGain: DEFAULT_VOICE_GAIN,
-      onProgress: (p) => setProgress(52 + Math.round(p * 44), `Mixage… ${Math.round(p * 100)}%`),
-    });
-
-    setProgress(98, 'Enregistrement…');
+    const { blob, duration } = await buildSubliminalMix(phrases, audioMeta, setProgress);
     const title = customTitle || audioMeta.title || 'Subliminal';
     const tags = getTagInputTags('#create-tags-root');
 
     await saveTrack({
       id: crypto.randomUUID(),
       title,
-      duration: duration || audioMeta.duration,
+      duration: Math.round(duration || audioMeta.duration || 0),
       thumbnail: generateAudioThumbnail(audioMeta),
       tags,
       affirmations: phrases,
@@ -1519,6 +1535,8 @@ async function handleCreate(e) {
       playlistIds: [],
       blob,
       mimeType: blob.type || 'audio/wav',
+      mixVersion: MIX_VERSION,
+      baseAudioId: audioMeta.id,
       createdAt: Date.now(),
     });
 

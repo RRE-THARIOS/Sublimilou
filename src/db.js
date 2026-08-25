@@ -22,7 +22,7 @@ function toCloudTrackMeta(track, userId) {
     id: track.id,
     user_id: userId,
     title: track.title || 'Sans titre',
-    duration: track.duration || 0,
+    duration: Math.round(Number(track.duration) || 0),
     thumbnail: track.thumbnail || null,
     youtube_url: track.youtubeUrl || null,
     video_id: track.videoId || null,

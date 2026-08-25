@@ -328,6 +328,30 @@ export async function restoreLastSession() {
   emit();
 }
 
+/** Recharge le blob local sans interrompre une lecture en cours. */
+export async function reloadCurrentTrackBlob() {
+  if (!currentTrackId) return;
+  const a = audio;
+  if (a && !a.paused) return;
+
+  const track = await getTrack(currentTrackId);
+  if (!track?.blob) return;
+
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = URL.createObjectURL(track.blob);
+  const t = a?.currentTime || 0;
+  a.src = objectUrl;
+  a.load();
+  if (t > 0) {
+    const onMeta = () => {
+      a.currentTime = Math.min(t, a.duration || t);
+      a.removeEventListener('loadedmetadata', onMeta);
+    };
+    a.addEventListener('loadedmetadata', onMeta);
+  }
+  emit();
+}
+
 async function persistSession() {
   await setSetting('lastTrackId', currentTrackId || '');
   await setSetting('lastQueue', JSON.stringify(queue));
