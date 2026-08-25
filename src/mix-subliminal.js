@@ -1,8 +1,11 @@
 /** Durée max du morceau de base (secondes) */
 export const MAX_BASE_DURATION_SEC = 8 * 60;
 
-/** Volume des affirmations (0–1, très bas par défaut) */
-export const DEFAULT_VOICE_GAIN = 0.038;
+/** Volume de la musique de base (légèrement sous les paroles) */
+export const DEFAULT_MUSIC_GAIN = 0.68;
+
+/** Volume des affirmations (0–1, à peine audibles) */
+export const DEFAULT_VOICE_GAIN = 0.08;
 
 /** Pause entre deux phrases (secondes) */
 export const PHRASE_GAP_SEC = 0.75;
@@ -24,11 +27,12 @@ export async function decodeBlob(blob, ctx) {
  * Mixe la musique de base avec des clips voix en boucle jusqu'à la fin.
  * @param {Blob} baseBlob
  * @param {{ audioBase64: string, mimeType?: string }[]} clips
- * @param {{ voiceGain?: number, onProgress?: (n: number) => void }} opts
+ * @param {{ voiceGain?: number, musicGain?: number, onProgress?: (n: number) => void }} opts
  * @returns {Promise<{ blob: Blob, duration: number, sampleRate: number }>}
  */
 export async function mixSubliminal(baseBlob, clips, opts = {}) {
   const voiceGain = opts.voiceGain ?? DEFAULT_VOICE_GAIN;
+  const musicGain = opts.musicGain ?? DEFAULT_MUSIC_GAIN;
   const gap = PHRASE_GAP_SEC;
 
   const ctx = new AudioContext();
@@ -68,9 +72,13 @@ export async function mixSubliminal(baseBlob, clips, opts = {}) {
   master.gain.value = 1;
   master.connect(offline.destination);
 
+  const musicBus = offline.createGain();
+  musicBus.gain.value = musicGain;
+  musicBus.connect(master);
+
   const baseSrc = offline.createBufferSource();
   baseSrc.buffer = base;
-  baseSrc.connect(master);
+  baseSrc.connect(musicBus);
   baseSrc.start(0);
 
   const voiceBus = offline.createGain();
