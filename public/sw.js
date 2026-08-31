@@ -1,4 +1,4 @@
-const CACHE = 'sublimilou-v50';
+const CACHE = 'sublimilou-v52';
 const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

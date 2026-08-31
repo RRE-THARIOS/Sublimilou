@@ -2,7 +2,9 @@ import { getTrack, getSetting, setSetting } from './db.js';
 import { buildQueueFromSource, QUEUE_VISIBLE } from './queue.js';
 import { shuffleArray } from './utils.js';
 
-let audio = null;
+let players = [null, null];
+let activePlayer = 0;
+let objectUrls = [null, null];
 let timerId = null;
 let timerEndAt = null;
 let currentTrackId = null;
@@ -14,13 +16,18 @@ let queueSource = [];
 let queue = [];
 let queueIndex = -1;
 let listeners = new Set();
-let objectUrl = null;
 let stateContextLabel = '';
 let mediaSessionReady = false;
 let lastPositionUpdate = 0;
 let wasPlayingOnHide = false;
-let endedInProgress = false; // garde-fou double-ended iOS
-let endedFallbackScheduled = false; // fallback iOS timeupdate → ended
+let advancing = false;
+let userStopped = false;
+let sleepStopped = false;
+let watchdogId = null;
+let prefetched = { id: null, index: -1 };
+let prefetchInFlight = false;
+let lastAdvanceAt = 0;
+const blobCache = new Map();
 
 function setPlaybackAudioSession() {
   try {
@@ -30,68 +37,128 @@ function setPlaybackAudioSession() {
   }
 }
 
-function getAudio() {
-  if (!audio) {
-    audio = new Audio();
-    audio.preload = 'auto';
-    audio.setAttribute('playsinline', '');
-    audio.setAttribute('webkit-playsinline', 'true');
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('ended', onEnded);
-    audio.addEventListener('play', onAudioPlay);
-    audio.addEventListener('pause', emit);
-    audio.addEventListener('loadedmetadata', emit);
+function createAudioEl() {
+  const el = new Audio();
+  el.preload = 'auto';
+  el.setAttribute('playsinline', '');
+  el.setAttribute('webkit-playsinline', 'true');
+  el.addEventListener('timeupdate', onTimeUpdate);
+  el.addEventListener('ended', onEnded);
+  el.addEventListener('play', onAudioPlay);
+  el.addEventListener('pause', onPause);
+  el.addEventListener('loadedmetadata', emit);
+  el.addEventListener('error', onAudioError);
+  return el;
+}
+
+function ensurePlayers() {
+  if (!players[0]) {
+    players[0] = createAudioEl();
+    players[1] = createAudioEl();
     initMediaSessionHandlers();
     bindBackgroundPlaybackGuards();
+    startWatchdog();
   }
-  return audio;
 }
 
-function onTimeUpdate() {
+function getAudio() {
+  ensurePlayers();
+  return players[activePlayer];
+}
+
+function getStandby() {
+  ensurePlayers();
+  return players[1 - activePlayer];
+}
+
+function isActiveEl(el) {
+  return el === getAudio();
+}
+
+function startWatchdog() {
+  if (watchdogId) return;
+  watchdogId = setInterval(() => {
+    const a = players[activePlayer];
+    if (!a || advancing || userStopped || sleepStopped) return;
+    maybePrefetch();
+    if (a.ended || isNearEnd(a)) beginAdvance();
+  }, 350);
+}
+
+function onTimeUpdate(e) {
+  if (e?.target && !isActiveEl(e.target)) return;
   emit();
   updatePositionStateThrottled();
-  // Fallback iOS : 'ended' ne se déclenche pas toujours (verrouillage, arrière-plan…)
-  const a = audio;
-  if (a && !a.paused && a.duration > 0 && !endedFallbackScheduled && !endedInProgress) {
-    if (a.currentTime >= a.duration - 0.35) {
-      endedFallbackScheduled = true;
-      setTimeout(() => { onEnded().catch(() => {}); }, 0);
-    }
-  }
+  maybePrefetch();
+  maybeAdvanceEarly();
 }
 
-function onAudioPlay() {
-  endedFallbackScheduled = false;
-  endedInProgress = false;
+function maybeAdvanceEarly() {
+  const a = getAudio();
+  if (!a || a.paused || advancing || userStopped || sleepStopped) return;
+  if (isNearEnd(a, 0.8)) beginAdvance();
+}
+
+function onAudioPlay(e) {
+  if (e?.target && !isActiveEl(e.target)) return;
   setPlaybackAudioSession();
   emit();
 }
 
+function onPause(e) {
+  if (e?.target && !isActiveEl(e.target)) return;
+  emit();
+  if (advancing || userStopped || sleepStopped) return;
+  const a = e?.target || getAudio();
+  const dur = a?.duration;
+  if (!a || !Number.isFinite(dur) || dur <= 0) return;
+  if (a.currentTime >= dur - 0.5 && a.currentTime > 0.5) {
+    beginAdvance();
+  }
+}
+
+function onAudioError(e) {
+  if (e?.target && !isActiveEl(e.target)) return;
+  if (advancing || userStopped || sleepStopped) return;
+  if (!currentTrackId || !queueSource.length) return;
+  beginAdvance();
+}
+
 function bindBackgroundPlaybackGuards() {
   document.addEventListener('visibilitychange', () => {
-    const a = audio;
+    const a = getAudio();
     if (!a) return;
     if (document.visibilityState === 'hidden') {
-      wasPlayingOnHide = !a.paused;
+      wasPlayingOnHide = !a.paused && !userStopped && !sleepStopped;
       return;
     }
-    if (wasPlayingOnHide && a.paused && currentTrackId) {
-      a.play().catch(() => {});
-    }
-    wasPlayingOnHide = false;
+    resumeAfterBackground();
   });
 
   window.addEventListener('pagehide', () => {
-    if (audio && !audio.paused) wasPlayingOnHide = true;
+    const a = players[activePlayer];
+    if (a && !a.paused && !userStopped && !sleepStopped) wasPlayingOnHide = true;
   });
 
   window.addEventListener('pageshow', () => {
-    const a = audio;
-    if (wasPlayingOnHide && a?.paused && currentTrackId) {
-      a.play().catch(() => {});
-    }
-    wasPlayingOnHide = false;
+    resumeAfterBackground();
   });
+}
+
+function resumeAfterBackground() {
+  const a = getAudio();
+  if (!wasPlayingOnHide || !a || !currentTrackId || userStopped || sleepStopped) {
+    wasPlayingOnHide = false;
+    return;
+  }
+  wasPlayingOnHide = false;
+  const dur = a.duration;
+  const atEnd = Number.isFinite(dur) && dur > 0 && a.currentTime >= dur - 0.5;
+  if (a.paused && atEnd) {
+    beginAdvance();
+    return;
+  }
+  if (a.paused) a.play().catch(() => {});
 }
 
 function buildArtwork(track) {
@@ -126,6 +193,8 @@ function initMediaSessionHandlers() {
   };
 
   safe('play', () => {
+    userStopped = false;
+    sleepStopped = false;
     getAudio()
       .play()
       .catch(() => {});
@@ -151,7 +220,7 @@ function initMediaSessionHandlers() {
 
 function updatePositionStateThrottled() {
   if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
-  const a = audio;
+  const a = getAudio();
   if (!a?.duration || !Number.isFinite(a.duration)) return;
 
   const now = Date.now();
@@ -169,34 +238,65 @@ function updatePositionStateThrottled() {
   }
 }
 
-async function onEnded() {
-  if (endedInProgress) return;
-  endedInProgress = true;
-  endedFallbackScheduled = false;
-  try {
-    const a = getAudio();
-    if (repeatMode === 'loop' && currentTrackId) {
+function isNearEnd(el, windowSec = 0.5) {
+  if (!el) return false;
+  if (el.ended) return true;
+  const dur = el.duration;
+  if (!Number.isFinite(dur) || dur <= 0) return false;
+  return el.currentTime >= dur - windowSec && el.currentTime > 0.5;
+}
+
+function cacheBlob(id, blob) {
+  if (id && blob) blobCache.set(id, blob);
+}
+
+function nextQueueIndex() {
+  const next = queueIndex + 1;
+  ensureQueueLength(next + QUEUE_VISIBLE + 1);
+  return next;
+}
+
+/**
+ * Enchaîne le titre suivant. play() est appelé de façon synchrone
+ * (sans await IndexedDB) pour que iOS accepte la lecture.
+ */
+function beginAdvance() {
+  if (advancing || userStopped || sleepStopped) return;
+  if (Date.now() - lastAdvanceAt < 700) return;
+
+  const a = getAudio();
+  if (repeatMode === 'loop' && currentTrackId) {
+    a.currentTime = 0;
+    a.play().catch(() => {});
+    return;
+  }
+  if (repeatMode === 'once' && currentTrackId) {
+    if (!repeatOnceLeft) {
+      repeatOnceLeft = true;
       a.currentTime = 0;
-      await a.play();
+      a.play().catch(() => {});
       return;
     }
-    if (repeatMode === 'once' && currentTrackId) {
-      if (!repeatOnceLeft) {
-        repeatOnceLeft = true;
-        a.currentTime = 0;
-        await a.play();
-        return;
-      }
-      repeatMode = 'off';
-      repeatOnceLeft = false;
-      loopEnabled = false;
-      await persistSession();
-      emit();
-    }
-    await playNext(true);
-  } finally {
-    endedInProgress = false;
+    repeatMode = 'off';
+    repeatOnceLeft = false;
+    loopEnabled = false;
+    persistSession().catch(() => {});
+    emit();
   }
+
+  const next = nextQueueIndex();
+  if (trySyncAdvance(next)) return;
+
+  advancing = true;
+  lastAdvanceAt = Date.now();
+  playTrackAt(next).finally(() => {
+    advancing = false;
+  });
+}
+
+async function onEnded(e) {
+  if (e?.target && !isActiveEl(e.target)) return;
+  beginAdvance();
 }
 
 function emit() {
@@ -261,7 +361,7 @@ export function getState() {
   if (queueSource.length && queueIndex >= 0) {
     ensureQueueLength(queueIndex + 1 + QUEUE_VISIBLE);
   }
-  const a = audio;
+  const a = players[activePlayer];
   return {
     trackId: currentTrackId,
     track: null,
@@ -284,7 +384,7 @@ export function getState() {
 }
 
 export async function loadSettings() {
-  getAudio();
+  ensurePlayers();
   setPlaybackAudioSession();
   loopEnabled = (await getSetting('loop', 'false')) === 'true';
   shuffleOn = (await getSetting('shuffle', 'false')) === 'true';
@@ -317,30 +417,30 @@ export async function restoreLastSession() {
   const track = await getTrack(lastId);
   if (!track?.blob) return;
 
+  cacheBlob(lastId, track.blob);
   const a = getAudio();
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(track.blob);
+  assignSrc(activePlayer, track.blob);
   currentTrackId = lastId;
-  a.src = objectUrl;
   a.load();
 
   stateContextLabel = 'Reprendre';
   emit();
+  prefetchNext();
 }
 
 /** Recharge le blob local sans interrompre une lecture en cours. */
 export async function reloadCurrentTrackBlob() {
   if (!currentTrackId) return;
-  const a = audio;
+  const a = getAudio();
   if (a && !a.paused) return;
 
   const track = await getTrack(currentTrackId);
   if (!track?.blob) return;
 
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(track.blob);
+  cacheBlob(currentTrackId, track.blob);
+
   const t = a?.currentTime || 0;
-  a.src = objectUrl;
+  assignSrc(activePlayer, track.blob);
   a.load();
   if (t > 0) {
     const onMeta = () => {
@@ -390,25 +490,32 @@ export async function cycleRepeat() {
   return repeatMode;
 }
 
+function clearStopFlags() {
+  userStopped = false;
+  sleepStopped = false;
+}
+
 export async function playQueue(trackIds, { shuffle = false, startIndex = 0, label = '' } = {}) {
   if (!trackIds.length) return;
+  clearStopFlags();
   queueSource = shuffle ? shuffleArray(trackIds) : [...trackIds];
   shuffleOn = shuffle;
   initQueue(startIndex);
-  await persistSession();
   await playTrackAt(queueIndex, label);
 }
 
 export async function playTrack(trackId, label = '', { sourceIds = null } = {}) {
+  clearStopFlags();
   if (sourceIds?.length) {
     queueSource = [...sourceIds];
     const idx = queueSource.indexOf(trackId);
     initQueue(idx >= 0 ? idx : 0);
+  } else if (queueSource.includes(trackId)) {
+    initQueue(queueSource.indexOf(trackId));
   } else {
     queueSource = [trackId];
     initQueue(0);
   }
-  await persistSession();
   await playTrackAt(queueIndex, label);
 }
 
@@ -434,27 +541,32 @@ export async function reorderQueueRelative(fromSlot, toSlot) {
 
   const [item] = queue.splice(fromAbs, 1);
   queue.splice(toAbs, 0, item);
+  prefetched = { id: null, index: -1 };
   await persistSession();
   emit();
 }
 
 export async function jumpToQueueIndex(absIndex) {
   if (absIndex < 0 || absIndex >= queue.length) return;
+  clearStopFlags();
   ensureQueueLength(absIndex + QUEUE_VISIBLE + 1);
   await playTrackAt(absIndex);
 }
 
 export async function playNext(auto = false) {
   if (!queueSource.length) return;
+  if (auto && (userStopped || sleepStopped)) return;
+  if (!auto) clearStopFlags();
   repeatOnceLeft = false;
 
-  const next = queueIndex + 1;
-  ensureQueueLength(next + QUEUE_VISIBLE + 1);
+  const next = nextQueueIndex();
+  if (trySyncAdvance(next)) return;
   await playTrackAt(next);
 }
 
 export async function playPrevious() {
   if (!queueSource.length) return;
+  clearStopFlags();
   const a = getAudio();
   if (a.currentTime > 3) {
     a.currentTime = 0;
@@ -462,40 +574,167 @@ export async function playPrevious() {
     return;
   }
   let prev = queueIndex - 1;
-  if (prev < 0) prev = queue.length - 1;
+  if (prev < 0) prev = Math.max(0, queue.length - 1);
   await playTrackAt(prev);
 }
 
-async function playTrackAt(index, label = '') {
-  if (index < 0 || index >= queue.length) return;
+function assignSrc(playerIndex, blob) {
+  const prev = objectUrls[playerIndex];
+  const url = URL.createObjectURL(blob);
+  objectUrls[playerIndex] = url;
+  players[playerIndex].src = url;
+  if (prev && prev !== url) {
+    setTimeout(() => URL.revokeObjectURL(prev), 2500);
+  }
+  return url;
+}
+
+async function playEl(el) {
+  setPlaybackAudioSession();
+  try {
+    await el.play();
+  } catch (err) {
+    if (err?.name === 'AbortError' && !el.paused) return;
+    await new Promise((r) => setTimeout(r, 50));
+    await el.play();
+  }
+}
+
+function afterTrackStarted(id, label = '') {
+  prefetched = { id: null, index: -1 };
+  if (label) stateContextLabel = label;
+  persistSession().catch(() => {});
+  emit();
+  prefetchNext();
+}
+
+/** play() synchrone sur le lecteur de secours — aucun await avant. */
+function trySyncAdvance(index) {
+  if (index == null || index < 0) return false;
+  ensureQueueLength(index + 1);
+  const id = queue[index];
+  if (!id || !players[0]) return false;
+
+  const standbyIdx = 1 - activePlayer;
+  const standby = players[standbyIdx];
+  const loaded = prefetched.id === id && standby?.src;
+  if (!loaded) {
+    const blob = blobCache.get(id);
+    if (!blob) return false;
+    assignSrc(standbyIdx, blob);
+    prefetched = { id, index };
+  }
+
+  lastAdvanceAt = Date.now();
+  advancing = true;
+  setPlaybackAudioSession();
+  const playPromise = standby.play();
+  const outgoing = players[activePlayer];
+  activePlayer = standbyIdx;
+  queueIndex = index;
+  currentTrackId = id;
+  repeatOnceLeft = false;
+  try {
+    outgoing.pause();
+  } catch {
+    /* ignore */
+  }
+
+  playPromise
+    .then(() => {
+      advancing = false;
+      afterTrackStarted(id);
+    })
+    .catch((err) => {
+      console.warn('sync advance failed:', err);
+      advancing = false;
+      playTrackAt(index, '', 0, { allowSync: false }).catch(() => {});
+    });
+  return true;
+}
+
+function prefetchNext() {
+  if (prefetchInFlight || userStopped || sleepStopped) return;
+  if (!queueSource.length || queueIndex < 0) return;
+
+  const next = queueIndex + 1;
+  ensureQueueLength(next + 1);
+  const nextId = queue[next];
+  if (!nextId) return;
+  if (prefetched.id === nextId && prefetched.index === next) return;
+
+  const apply = (blob) => {
+    cacheBlob(nextId, blob);
+    if (queue[queueIndex + 1] !== nextId) return;
+    assignSrc(1 - activePlayer, blob);
+    prefetched = { id: nextId, index: next };
+  };
+
+  if (blobCache.has(nextId)) {
+    apply(blobCache.get(nextId));
+    return;
+  }
+
+  prefetchInFlight = true;
+  getTrack(nextId)
+    .then((track) => {
+      if (track?.blob) apply(track.blob);
+    })
+    .catch(() => {})
+    .finally(() => {
+      prefetchInFlight = false;
+    });
+}
+
+function maybePrefetch() {
+  prefetchNext();
+}
+
+async function playTrackAt(index, label = '', skipCount = 0, opts = {}) {
+  if (index < 0) return;
+  ensureQueueLength(index + QUEUE_VISIBLE + 1);
+  if (index >= queue.length) return;
+  if (skipCount > 25) {
+    emit();
+    return;
+  }
+
+  if (opts.allowSync !== false && trySyncAdvance(index)) {
+    if (label) stateContextLabel = label;
+    return;
+  }
+
+  lastAdvanceAt = Date.now();
   queueIndex = index;
   const trackId = queue[queueIndex];
   const track = await getTrack(trackId);
   if (!track?.blob) {
-    // Track sans audio : on l'éjecte et on essaie le suivant
     queue.splice(index, 1);
     queueSource = queueSource.filter((id) => id !== trackId);
-    if (!queueSource.length) { emit(); return; }
-    initQueue(Math.min(queueIndex, queueSource.length - 1));
-    await playTrackAt(queueIndex, label);
+    if (!queueSource.length) {
+      emit();
+      return;
+    }
+    ensureQueueLength(index + QUEUE_VISIBLE + 1);
+    await playTrackAt(Math.min(index, queue.length - 1), label, skipCount + 1);
     return;
   }
 
-  ensureQueueLength(queueIndex + QUEUE_VISIBLE + 1);
-
+  cacheBlob(trackId, track.blob);
   const a = getAudio();
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(track.blob);
+  assignSrc(activePlayer, track.blob);
   currentTrackId = trackId;
   repeatOnceLeft = false;
-  a.src = objectUrl;
-  a.load();
-  setPlaybackAudioSession();
-  await a.play();
-  await setSetting('lastTrackId', trackId);
-  if (label) stateContextLabel = label;
-  await persistSession();
-  emit();
+  try {
+    await playEl(a);
+  } catch (err) {
+    console.warn('playTrackAt:', err);
+    ensureQueueLength(index + 2);
+    await playTrackAt(index + 1, label, skipCount + 1);
+    return;
+  }
+
+  afterTrackStarted(trackId, label);
 }
 
 export async function enrichState(state) {
@@ -507,14 +746,25 @@ export async function enrichState(state) {
 }
 
 export function pause() {
+  userStopped = true;
   getAudio().pause();
   emit();
 }
 
 export function toggle() {
   const a = getAudio();
-  if (a.paused) a.play();
-  else a.pause();
+  if (a.paused) {
+    userStopped = false;
+    sleepStopped = false;
+    if (isNearEnd(a) && queueSource.length) {
+      playNext(false).catch(() => {});
+      return;
+    }
+    a.play().catch(() => {});
+  } else {
+    userStopped = true;
+    a.pause();
+  }
   emit();
 }
 
@@ -555,11 +805,14 @@ export function clearSleepTimer() {
 }
 
 async function fadeOutAndStop() {
+  sleepStopped = true;
+  userStopped = true;
   const a = getAudio();
   const steps = 24;
   const stepMs = 180;
   const startVol = a.volume;
   for (let i = 0; i < steps; i++) {
+    if (!sleepStopped) break;
     a.volume = startVol * (1 - (i + 1) / steps);
     await new Promise((r) => setTimeout(r, stepMs));
   }
